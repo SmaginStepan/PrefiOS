@@ -58,3 +58,26 @@ If `xcode-select` points at the CommandLineTools, prefix commands with
   procedurally (the AI destroyed its fine lattice pattern).
 - On iOS the app language is selected via per-app language in system Settings
   (`CFBundleLocalizations` lists en/ru/es).
+
+## Multiplayer
+
+Host-authoritative online play against the live lobby/relay server at
+`wss://preferansmaster.com/ws` (health: https://preferansmaster.com/health).
+The JSON wire format is defined by the Android client
+(PrefAndroid net/Protocol.kt and mp/GameProtocol.kt) and the PrefServer zod
+schema — iOS and Android clients share rooms. Never change the wire format
+unilaterally; a protocol change must land on both platforms together.
+
+- PrefEngine/MP: protocol types (`type`/`t` discriminators, absent optionals
+  OMITTED — zod rejects explicit null; decode leniently), `HostGameSession`
+  (engine loop with `game.externalDriver`), `RemoteViews` (rotated + redacted
+  per-viewer snapshots).
+- App: `LobbyClient` (URLSession WebSocket, 25s ping), lobby/room screens,
+  hosted table (seat 0 always face-up locally; ScoreView is tap-through;
+  hosted games never touch the single-player save), thin guest client.
+- Tests: `ProtocolTests` (Android fixture JSON), `HostGameSessionTests`
+  (3 remote seats over JSON, zero hidden-card leaks), `LiveRelayTests`
+  (full game against the production relay; run with `PREF_LIVE_TEST=1`).
+- v1 limitations (same as Android): every seat plays its own hand; 4-seat
+  rooms can be created/joined but Start shows a coming-soon note; the host
+  does not push a fresh State on guest rejoin.

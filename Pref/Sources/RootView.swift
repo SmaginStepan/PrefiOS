@@ -59,6 +59,8 @@ struct RootView: View {
                     path = [.game]
                 case "sheet":
                     path = [.sheet(players: 3, setup: false)]
+                case "mp":
+                    path = [.multiplayer]
                 default:
                     break
                 }
