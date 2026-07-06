@@ -27,6 +27,19 @@ public final class Game: Codable {
 
         public init() {}
 
+        private enum CodingKeys: String, CodingKey {
+            case trump, contract, pas, miser
+        }
+
+        // Lenient decode (wire compatibility): missing fields keep defaults.
+        public required init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            trump = try c.decodeIfPresent(Int.self, forKey: .trump) ?? 0
+            contract = try c.decodeIfPresent(Int.self, forKey: .contract) ?? 0
+            pas = try c.decodeIfPresent(Bool.self, forKey: .pas) ?? false
+            miser = try c.decodeIfPresent(Bool.self, forKey: .miser) ?? false
+        }
+
         // Note: display text; the SwiftUI layer localizes bids itself, this stays for logs.
         public var title: String {
             if pas {
@@ -53,6 +66,10 @@ public final class Game: Codable {
 
     /// Replacement for the WP7 BackgroundWorker.ReportProgress: UI refresh signal. Transient.
     public var onProgress: (() -> Void)?
+
+    /// Hosted multiplayer: disables isAI() so next() stops at EVERY input point
+    /// and an external session dispatches each seat. Transient.
+    public var externalDriver: Bool = false
 
     public final class Animation {
         public var player: Int = 0
@@ -129,7 +146,9 @@ public final class Game: Codable {
     // NOTE: returns false in several situations where the HUMAN plays cards from
     // AI hands (open whist play, catching a misère). Never call AI.makeMove blindly there.
     public func isAI() -> Bool {
-        // TODO: Режим игры нескольких игроков
+        if externalDriver {
+            return false
+        }
         let isOpened = self.isOpened
         let playerIsVister = contractor != 0 && isVister.containsKey(0) && isVister[0] == true
         let isVistPlaying = contractor != playerInTurn && phase == .Playing && currentGameType == .Normal
@@ -183,7 +202,7 @@ public final class Game: Codable {
         curentBids = OrderedIntDict()
         isVister = OrderedIntDict()
         deal = Deal()
-        deal.hands[0].isVisible = true
+        deal.hands[0].isVisible = !externalDriver
         phase = .Negotiations
         maxBid = nil
         trump = -1

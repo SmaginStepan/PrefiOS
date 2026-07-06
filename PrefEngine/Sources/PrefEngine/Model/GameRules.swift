@@ -25,6 +25,28 @@ public final class GameRules: Codable {
 
     public init() {}
 
+    private enum CodingKeys: String, CodingKey {
+        case gameType, raspasyProgression, raspasyExit, miserRaspExit, vist, consolation,
+             vistTakeOnRaspas, ending, scoring, consolationBonus, prikupConsolation, stalindgrad
+    }
+
+    // Lenient decode (like kotlinx with defaults): missing fields keep defaults.
+    public required init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        gameType = try c.decodeIfPresent(RulesGameType.self, forKey: .gameType) ?? .Sochy
+        raspasyProgression = try c.decodeIfPresent(RaspasyProgression.self, forKey: .raspasyProgression) ?? .Arifm1233
+        raspasyExit = try c.decodeIfPresent(RaspasyExit.self, forKey: .raspasyExit) ?? .Med677
+        miserRaspExit = try c.decodeIfPresent(Bool.self, forKey: .miserRaspExit) ?? true
+        vist = try c.decodeIfPresent(VistType.self, forKey: .vist) ?? .FullResponsibility
+        consolation = try c.decodeIfPresent(ConsolationType.self, forKey: .consolation) ?? .Zlob
+        vistTakeOnRaspas = try c.decodeIfPresent(Int.self, forKey: .vistTakeOnRaspas) ?? 5
+        ending = try c.decodeIfPresent(EndingType.self, forKey: .ending) ?? .Each
+        scoring = try c.decodeIfPresent(ScoreType.self, forKey: .scoring) ?? .Normal
+        consolationBonus = try c.decodeIfPresent(ConsolationSum.self, forKey: .consolationBonus) ?? .Normal
+        prikupConsolation = try c.decodeIfPresent(Bool.self, forKey: .prikupConsolation) ?? true
+        stalindgrad = try c.decodeIfPresent(Bool.self, forKey: .stalindgrad) ?? true
+    }
+
     // Note: the original Clone() silently skipped scoring/consolationBonus/
     // prikupConsolation/stalindgrad, so those settings never reached a new game.
     // Fixed here (as in the Kotlin port): all fields are copied.

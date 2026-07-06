@@ -26,6 +26,7 @@ struct MainMenuView: View {
     let hasSavedGame: Bool
     let onNewGame: () -> Void
     let onContinue: () -> Void
+    let onMultiplayer: () -> Void
     let onLearning: () -> Void
     let onCalc: () -> Void
     let onSettings: () -> Void
@@ -36,14 +37,26 @@ struct MainMenuView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // Branding: title on ONE line (auto-shrinks, never wraps),
+                // serif-italic letter-spaced subtitle right-aligned beneath.
                 Text(L("app_name"))
                     .font(.system(size: 56, design: .serif))
                     .foregroundColor(Theme.accentGold)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(L("menu_subtitle"))
+                    .font(.system(size: 22, design: .serif))
+                    .italic()
+                    .kerning(6)
+                    .foregroundColor(Theme.accentGold.opacity(0.75))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.bottom, 24)
                 MenuItem(title: L("menu_new_game"), subtitle: L("menu_new_game_sub"), onClick: onNewGame)
                 if hasSavedGame {
                     MenuItem(title: L("menu_continue"), subtitle: L("menu_continue_sub"), onClick: onContinue)
                 }
+                MenuItem(title: L("mp_menu"), subtitle: L("mp_menu_sub"), onClick: onMultiplayer)
                 MenuItem(title: L("menu_learning"), subtitle: L("menu_learning_sub"), onClick: onLearning)
                 MenuItem(title: L("menu_pulka"), subtitle: L("menu_pulka_sub"), onClick: onCalc)
                 MenuItem(title: L("menu_settings"), subtitle: L("menu_settings_sub"), onClick: onSettings)

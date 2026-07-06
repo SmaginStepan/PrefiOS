@@ -7,12 +7,21 @@ public final class AppSettings {
         var rules: GameRules = GameRules()
         var playerName: String = "Игрок"
         var limit: Int = 40
+        var playerId: String = ""
 
         private enum CodingKeys: String, CodingKey {
-            case rules, playerName, limit
+            case rules, playerName, limit, playerId
         }
 
         init() {}
+
+        required init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            rules = try c.decodeIfPresent(GameRules.self, forKey: .rules) ?? GameRules()
+            playerName = try c.decodeIfPresent(String.self, forKey: .playerName) ?? "Игрок"
+            limit = try c.decodeIfPresent(Int.self, forKey: .limit) ?? 40
+            playerId = try c.decodeIfPresent(String.self, forKey: .playerId) ?? ""
+        }
     }
 
     private var data: Data_
@@ -58,6 +67,15 @@ public final class AppSettings {
             data.limit = newValue
             save()
         }
+    }
+
+    /// Persisted device UUID: the multiplayer identity and reconnect token.
+    public var playerId: String {
+        if data.playerId.isEmpty {
+            data.playerId = UUID().uuidString.lowercased() // Android emits lowercase UUIDs
+            save()
+        }
+        return data.playerId
     }
 
     private static let fileName = "settings.json"
