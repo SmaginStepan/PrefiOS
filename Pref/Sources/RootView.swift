@@ -4,6 +4,7 @@ import PrefEngine
 /// Navigation routes (port of MainActivity.Routes).
 enum Route: Hashable {
     case game
+    case multiplayer
     case settings
     case calcRules
     case calc
@@ -34,6 +35,7 @@ struct RootView: View {
                     path.append(.game)
                 },
                 onContinue: { path.append(.game) },
+                onMultiplayer: { path.append(.multiplayer) },
                 onLearning: { path.append(.learning) },
                 onCalc: { path.append(.calc) },
                 onSettings: { path.append(.settings) },
@@ -69,6 +71,9 @@ struct RootView: View {
         switch route {
         case .game:
             GameView(onShowScore: { path.append(.sheetGame) })
+
+        case .multiplayer:
+            MultiplayerView(onBack: { popBack() })
 
         case .settings:
             SettingsView(forCalc: false, calc: app.calc, game: app.game, onSaved: { popBack() })

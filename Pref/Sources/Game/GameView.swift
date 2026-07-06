@@ -1,7 +1,7 @@
 import SwiftUI
 import PrefEngine
 
-private struct TableStrings {
+struct TableStrings {
     var p0 = ""
     var p1 = ""
     var p2 = ""
@@ -11,7 +11,7 @@ private struct TableStrings {
 }
 
 /// Port of DrawField's text section.
-private func buildTableStrings(_ info: TableInfo) -> TableStrings {
+func buildTableStrings(_ info: TableInfo) -> TableStrings {
     var s = TableStrings()
     s.p0 = GameTexts.playerInfo(info, 0)
     s.p1 = GameTexts.playerInfo(info, 1)
@@ -76,8 +76,24 @@ private func buildTableStrings(_ info: TableInfo) -> TableStrings {
     return s
 }
 
+/// Everything the table needs to run as a multiplayer host.
+final class HostedConfig {
+    let names: [String]
+    let seatKinds: [SeatKind]
+    let sendToSeat: (Int, GameMsg.State) -> Void
+    /// Set by GameView on appear; the lobby feeds decoded remote acts here.
+    var deliverAct: ((Int, GameMsg.Act) -> Void)?
+
+    init(names: [String], seatKinds: [SeatKind], sendToSeat: @escaping (Int, GameMsg.State) -> Void) {
+        self.names = names
+        self.seatKinds = seatKinds
+        self.sendToSeat = sendToSeat
+    }
+}
+
 struct GameView: View {
     let onShowScore: () -> Void
+    var hostedConfig: HostedConfig?
 
     @EnvironmentObject private var app: AppState
     @StateObject private var vm = GameViewModel()
@@ -252,6 +268,13 @@ struct GameView: View {
                     .padding(6)
                 }
 
+                // Multiplayer: score standing between deals / at game end
+                if let snap = vm.scoresOverlay {
+                    ScoreOverlay(snap: snap, onTap: { vm.onCanvasTap() })
+                        .frame(width: 400 * kx)
+                        .offset(x: 40 * kx, y: 150 * ky)
+                }
+
                 // Past tricks popup
                 if vm.showTricks {
                     TricksPopup(vm: vm, images: images)
@@ -267,7 +290,14 @@ struct GameView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .onAppear {
             vm.onShowScore = onShowScore
-            vm.start(app: app, ai1Name: L("ai_name_1"), ai2Name: L("ai_name_2"))
+            if let config = hostedConfig {
+                config.deliverAct = { [weak vm] seat, act in
+                    vm?.onRemoteAct(seat, act)
+                }
+                vm.startHosted(names: config.names, seatKinds: config.seatKinds, sendToSeat: config.sendToSeat)
+            } else {
+                vm.start(app: app, ai1Name: L("ai_name_1"), ai2Name: L("ai_name_2"))
+            }
         }
     }
 

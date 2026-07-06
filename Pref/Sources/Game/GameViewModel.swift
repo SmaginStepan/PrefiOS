@@ -4,24 +4,7 @@ import SwiftUI
 // view model's serial gameQueue, matching the original app's BackgroundWorker.
 @preconcurrency import PrefEngine
 
-/// Immutable snapshot of everything the table UI needs to render texts.
-struct TableInfo {
-    var phase: GamePhase = .NotStarted
-    var names: [String] = ["", "", ""]
-    var dealer: Int = 0
-    var taken: [Int] = [0, 0, 0]
-    var currentGameType: GameType = .Raspasy
-    var contractor: Int = 0
-    var isVister: [Int: Bool] = [:]
-    var curentBids: [Int: Game.Bid] = [:]
-    var maxBid: Game.Bid?
-    var playerToTake: Int = 0
-    var playerInTurn: Int = 0
-    var gameResult: Calculation.GameResult?
-    var showPrikupBtn1: Bool = false
-    var showPrikupBtn2: Bool = false
-    var showTricksBtn: Bool = false
-}
+// TableInfo now lives in PrefEngine (it is also the multiplayer wire shape).
 
 struct CardAnim {
     let card: Card
@@ -94,6 +77,76 @@ final class GameViewModel: ObservableObject {
     private var started = false
     private var loopRunning = false
 
+    // hosted multiplayer: the session (not this VM) drives the loop
+    private(set) var hosted = false
+    @Published private(set) var scoresOverlay: ScoreSnap?
+    private var session: HostGameSession?
+
+    /// Host side of a multiplayer game. Seat 0 is the local player.
+    /// Hosted games never touch the single-player save.
+    func startHosted(
+        names: [String],
+        seatKinds: [SeatKind],
+        sendToSeat: @escaping (Int, GameMsg.State) -> Void
+    ) {
+        if started { return }
+        started = true
+        hosted = true
+        game = Game.create()
+        for (i, name) in names.prefix(3).enumerated() {
+            game.calc.scores[i].name = name
+        }
+        let s = HostGameSession(
+            game: game,
+            seats: seatKinds,
+            sendToSeat: sendToSeat,
+            onLocalTurn: { [weak self] in
+                Task { @MainActor [weak self] in
+                    self?.buildMenu()
+                    self?.refresh()
+                }
+            }
+        )
+        session = s
+        busy = true
+        thinking = true
+        Task {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                gameQueue.async {
+                    do {
+                        try s.start()
+                    } catch {
+                        NSLog("Pref: hosted start error: %@", "\(error)")
+                    }
+                    continuation.resume()
+                }
+            }
+            thinking = false
+            busy = false
+            buildMenu()
+            refresh()
+        }
+    }
+
+    /// A remote player's action arrived over the relay.
+    func onRemoteAct(_ seat: Int, _ act: GameMsg.Act) {
+        guard let s = session else { return }
+        Task {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                gameQueue.async {
+                    do {
+                        try s.onRemoteAct(seat, act)
+                    } catch {
+                        NSLog("Pref: remote act error: %@", "\(error)")
+                    }
+                    continuation.resume()
+                }
+            }
+            buildMenu()
+            refresh()
+        }
+    }
+
     func start(app: AppState, ai1Name: String, ai2Name: String) {
         self.app = app
         if !started {
@@ -112,35 +165,27 @@ final class GameViewModel: ObservableObject {
     }
 
     private func buildTableInfo() -> TableInfo {
-        var isVister: [Int: Bool] = [:]
-        for (k, v) in game.isVister.entries {
-            isVister[k] = v
-        }
-        var curentBids: [Int: Game.Bid] = [:]
-        for (k, v) in game.curentBids.entries {
-            curentBids[k] = v
-        }
-        return TableInfo(
-            phase: game.phase,
-            names: game.calc.scores.map { $0.name },
-            dealer: game.calc.dealer,
-            taken: game.deal.hands.map { $0.taken },
-            currentGameType: game.currentGameType,
-            contractor: game.contractor,
-            isVister: isVister,
-            curentBids: curentBids,
-            maxBid: game.maxBid,
-            playerToTake: game.playerToTake,
-            playerInTurn: game.playerInTurn,
-            gameResult: game.phase == .EndPlay ? game.getGameResult() : nil,
-            showPrikupBtn1: (game.phase == .Playing || game.phase == .EndTurn)
-                && (game.currentGameType == .Normal || game.currentGameType == .Miser)
-                && game.contractor == 1 && game.opening && showPrikupHand != 1,
-            showPrikupBtn2: (game.phase == .Playing || game.phase == .EndTurn)
-                && (game.currentGameType == .Normal || game.currentGameType == .Miser)
-                && game.contractor == 2 && game.opening && showPrikupHand != 2,
-            showTricksBtn: game.phase == .Playing || game.phase == .EndTurn
-        )
+        var info = TableInfo()
+        info.phase = game.phase
+        info.names = game.calc.scores.map { $0.name }
+        info.dealer = game.calc.dealer
+        info.taken = game.deal.hands.map { $0.taken }
+        info.currentGameType = game.currentGameType
+        info.contractor = game.contractor
+        info.isVister = game.isVister
+        info.curentBids = game.curentBids
+        info.maxBid = game.maxBid
+        info.playerToTake = game.playerToTake
+        info.playerInTurn = game.playerInTurn
+        info.gameResult = game.phase == .EndPlay ? game.getGameResult() : nil
+        info.showPrikupBtn1 = (game.phase == .Playing || game.phase == .EndTurn)
+            && (game.currentGameType == .Normal || game.currentGameType == .Miser)
+            && game.contractor == 1 && game.opening && showPrikupHand != 1
+        info.showPrikupBtn2 = (game.phase == .Playing || game.phase == .EndTurn)
+            && (game.currentGameType == .Normal || game.currentGameType == .Miser)
+            && game.contractor == 2 && game.opening && showPrikupHand != 2
+        info.showTricksBtn = game.phase == .Playing || game.phase == .EndTurn
+        return info
     }
 
     /// Recompute all published render state from the (quiescent) game.
@@ -149,17 +194,46 @@ final class GameViewModel: ObservableObject {
         field = TableLayout.computeField(game, discardSelection: cardsToDiscard)
         pinnedOverlays.removeAll()
         info = buildTableInfo()
+        scoresOverlay = hosted && (game.phase == .ScoreView || game.phase == .Ended)
+            ? RemoteViews.buildScoresFor(game, 0)
+            : nil
     }
 
     func gameNext() {
         if loopRunning { return }
+        if hosted, let s = session {
+            // hosted: the local action was already applied; the session runs
+            // next() + bots + remote broadcasting
+            loopRunning = true
+            busy = true
+            thinking = true
+            transientHint = nil
+            Task {
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    gameQueue.async { [game = self.game!] in
+                        do {
+                            try s.onLocalActed()
+                        } catch {
+                            NSLog("Pref: hosted loop error (phase=%@): %@", game.phase.rawValue, "\(error)")
+                        }
+                        continuation.resume()
+                    }
+                }
+                thinking = false
+                busy = false
+                buildMenu()
+                refresh()
+                loopRunning = false
+            }
+            return
+        }
         loopRunning = true
         busy = true
         thinking = true
         transientHint = nil
         let game = self.game!
         Task {
-            let error: Error? = await withCheckedContinuation { continuation in
+            let error: Error? = await withCheckedContinuation { (continuation: CheckedContinuation<Error?, Never>) in
                 gameQueue.async { [weak self] in
                     game.onProgress = {
                         // Called from the game loop at safe points; compute on this
@@ -310,6 +384,12 @@ final class GameViewModel: ObservableObject {
         case .EndPlay:
             game.endConfirm()
             gameNext()
+        case .ScoreView:
+            // hosted games treat the score view as a confirm turn
+            if hosted {
+                game.scoreClose()
+                gameNext()
+            }
         default:
             break
         }
@@ -405,7 +485,7 @@ final class GameViewModel: ObservableObject {
         thinking = true
         let game = self.game!
         Task {
-            let hint: String? = await withCheckedContinuation { continuation in
+            let hint: String? = await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
                 gameQueue.async {
                     do {
                         guard let ai = game.aIs[game.playerInTurn] else {
