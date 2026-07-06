@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<LearningCourse xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.datacontract.org/2004/07/Pref">
+  <Position>1</Position>
+  <Stages>
+    <LearningStage i:type="TextStage">
+      <Text>
+  ¡Hola!
+  Con este breve curso aprenderás a jugar al Preferans.
+  No temas: no es tan difícil como parece.
+  El Preferans es un antiguo juego de cartas intelectual ruso.
+  El Preferans es un juego "comercial": un juego con apuestas en el que el resultado depende mucho más de la habilidad del jugador que de la suerte, a diferencia de los juegos de azar.
+  El dinero no forma parte de la estrategia del Preferans, por lo que es una parte totalmente opcional del juego.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Al Preferans juegan tres o cuatro jugadores, y existe también una variante especial para dos.
+  El juego se divide en manos.
+  En cada mano se reparte una baraja de 32 cartas entre tres jugadores*, 10 cartas a cada uno, y dos cartas se apartan formando el llamado "talón".
+  La baraja contiene los cuatro palos a partir del 7. Es decir, 8 cartas (7, 8, 9, 10, J, Q, K, A) de cada palo.
+
+  * — con cuatro jugadores, uno descansa en cada mano; con dos jugadores, uno de los dos juega por el tercero.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Sale primero el jugador sentado después del que reparte. Pone una carta de su mano sobre la mesa, el siguiente jugador pone la siguiente carta y después el último jugador de la mesa.
+  El jugador cuya carta resulta más alta se lleva la baza (retira las cartas de la mesa) y vuelve a salir.
+  El resultado de la mano depende de cuántas bazas se lleva cada jugador. No importa en absoluto qué cartas había sobre la mesa: solo importa quién se llevó la baza.
+  En cada mano se juegan 10 bazas.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Al jugar cada baza, la salida (la primera carta) puede ser cualquier carta, pero si ya hay una carta en la mesa, es obligatorio servir una carta del mismo palo.
+  Si no tienes cartas de ese palo, debes jugar un triunfo. Si tampoco tienes triunfos, puedes jugar cualquier carta.
+  Se lleva la baza el triunfo más alto o, si no hay triunfos, la carta más alta del palo de salida (el mismo palo que la primera carta jugada).
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Como ya se ha dicho, el resultado de cada mano — el número de whists (que pueden convertirse en dinero) — depende de cuántas bazas se lleve cada jugador.
+  Pero si todo el juego consistiera en llevarse cuantas más bazas mejor, ¡no sería tan fascinante!
+  Antes de jugar las bazas, los jugadores subastan el derecho a declarar el juego y llevarse el "talón" (las dos cartas que se apartan en cada reparto).
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  El ganador de la subasta se lleva el talón, mostrándolo antes a los demás jugadores, y luego descarta boca abajo (sin mostrarlas a nadie) las 2 cartas que menos le sirven (para quedarse con 10 cartas, como los demás).
+  Después declara el triunfo y cuántas bazas piensa llevarse.
+  Esta declaración se llama contrato.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Si el jugador cumple el contrato (se lleva exactamente tantas bazas como declaró, o más), recibe una gran cantidad de whists.
+  Cuanto más alto sea el contrato, más whists recibe.
+  Sin embargo, si no consigue las bazas necesarias, recibe una sanción aún mayor, que crece con cada baza que le falte.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Por lo tanto, el jugador debe evaluar su mano de antemano y decidir cuántas bazas puede llevarse.
+  Es evidente, por ejemplo, que todas las cartas altas de un palo, si van seguidas, se llevarán su baza con seguridad.
+  Por ejemplo: A, K — 2 bazas; A, K, Q — 3, etcétera.
+  Pero incluso sin la carta más alta, o incluso sin dos, las cartas consecutivas también ganan sus bazas.
+  Por ejemplo: K, Q — 1 baza; Q, J, 10 — también 1 baza; y K, Q, J, 10 — 3 bazas.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Otra forma de ganar bazas es un palo largo.
+  La cuarta carta de cualquier palo casi siempre (88%) da una baza (a los rivales simplemente no les queda nada que servir).
+  Igualmente la 5ª, 6ª, 7ª y 8ª cartas son una baza 100% segura cada una.
+  Ejemplos: A, K, J, 9, 7 — 4 bazas si un rival tiene todas las cartas restantes del palo, y 5 bazas si el palo está repartido entre las dos manos.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  De este modo contamos las bazas de los 4 palos y las sumamos.
+  El número mínimo de bazas que debe llevarse un jugador (el contrato mínimo) es 6.
+  Conviene declarar como triunfo el palo más largo (el que tenga más cartas).
+  Si varios palos tienen la misma longitud, declara el de cartas más débiles.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  En casos sumamente raros conviene declarar un juego sin triunfo.
+  Pero solo puedes hacerlo si tienes las cartas más altas de todos los palos.
+  En un juego sin triunfo los palos largos normalmente no dan bazas.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Ya hemos explicado a grandes rasgos qué es un contrato y cómo estimar el número de bazas de tu mano.
+  No te preocupes si no lo has entendido todo a la primera.
+  La comprensión llega con la experiencia, y durante la partida siempre puedes usar el botón "Consejo".
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  La subasta por el derecho a declarar el contrato se desarrolla así.
+  El primer jugador o bien dice "paso" y queda fuera de la subasta, o bien anuncia el contrato mínimo que está dispuesto a jugar.
+  Después hace lo mismo el segundo jugador, pero si quiere el contrato debe anunciar uno mayor.
+  Luego el tercero, después el turno vuelve al primero, y así sucesivamente.
+  La subasta continúa hasta que quede un solo jugador dispuesto a jugar y todos los demás hayan pasado.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Los contratos se ordenan por el número de bazas y, en caso de empate, por el rango del palo de triunfo.
+  En el Preferans el orden de los palos es: picas ♠, tréboles ♣, diamantes ♦, corazones ♥.
+  Ejemplo de subasta: 1º — paso, 2º — 6♠, 3º — 6♣, 2º — 7♠, 3º — paso.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  En la subasta, puja hasta 6 si tienes 5 bazas en la mano (casi siempre ganarás una baza gracias al talón).
+  Después se toma el talón, se descartan las cartas y se declara el contrato definitivo, que puede ser mayor pero nunca menor que el ya anunciado.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Si los 3 jugadores dicen paso, se juega una variante especial: la ronda de "todos pasan" (raspasy).
+  En esa ronda, cuantas más bazas se lleve un jugador, mayor será su sanción: hay que procurar NO llevarse bazas.
+  Al jugarla, intenta recordar qué cartas han salido y conserva las cartas bajas de cada palo, con las que siempre podrás ceder la baza a otro.
+  Juega las cartas fuertes primero, empezando por los palos cortos (aquellos en los que tienes pocas cartas).
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Cuando el declarante anuncia el contrato definitivo, los otros dos jugadores deben decidir si juegan contra él o no.
+  Si un jugador está dispuesto a enfrentarse al declarante, dice "whist". Si no, "paso". El que dice whist se llama whisteador.
+  El whisteador siempre recibe una pequeña cantidad de whists, a diferencia del que pasa.
+  Pero si los whisteadores logran "tumbar" al declarante impidiéndole cumplir su contrato, tanto el whisteador como el que pasó reciben un gran bono.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Si ambos jugadores dicen "paso", la mano no se juega y al declarante se le anota el juego que declaró.
+  Si whistean los dos, se juega en cerrado y cada whisteador responde por sí mismo, aunque les sigue conviniendo luchar contra el declarante, pues recibirán muchos whists si este no llega a sus bazas.
+  Si whistea solo uno, asume toda la responsabilidad (sanciones y bonos) por las acciones del otro jugador y puede jugar en abierto.
+  En el juego abierto el whisteador y el que pasó ponen sus cartas boca arriba sobre la mesa y el whisteador dirige ambas manos.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Normalmente conviene whistear en abierto.
+  El whisteador está obligado a llevarse cierto número de bazas según lo que haya declarado el declarante.
+  Contra un juego de 6 — 4 bazas entre los dos, o 2 en solitario; contra uno de 7 — 2 entre los dos, o 1 en solitario; contra uno de 8 o 9 — 1 baza entre los dos. El juego de 10 se comprueba (no se dice whist ni paso: se juega directamente en abierto).
+  Si un whisteador no llega a sus bazas pero el otro se lleva más de las requeridas, nadie recibe sanción.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Otro contrato especial es la "miseria".
+  La miseria es un contrato por el que el jugador se compromete a no llevarse ninguna baza.
+  La miseria solo puede declararse de inmediato (durante la subasta no se puede cambiar de una puja normal a miseria).
+  La miseria puede superarse con un juego de 9 (9 bazas).
+  La miseria es un juego muy caro y muy arriesgado.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Una miseria "limpia" es aquella en la que el jugador puede no llevarse ni una sola baza por mucho que se esfuercen sus rivales.
+  Para una miseria limpia todos los palos deben ser "limpios": sin "huecos".
+  Cada palo debe empezar por el 7 y, por cada carta que falte, debe haber una carta menor en la mano.
+  Ejemplos de palos limpios: 7, 8, 9;  7, 9, J, K, A;  7, 8, J.
+  Ejemplos de huecos: 8;  7, 10;  7, 8, 9, A.
+  No juegues miseria si tienes más de 1 hueco.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  ¡Enhorabuena, ya sabes jugar al Preferans!
+  Prueba una partida y recuerda: en una situación difícil siempre puedes usar el botón "Consejo".
+      </Text>
+    </LearningStage>
+  </Stages>
+</LearningCourse>

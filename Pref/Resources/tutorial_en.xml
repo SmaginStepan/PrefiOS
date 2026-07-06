@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<LearningCourse xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.datacontract.org/2004/07/Pref">
+  <Position>1</Position>
+  <Stages>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Hello!
+  By taking this short course you will learn how to play Preferans.
+  Don't worry — it is not as hard as it looks.
+  Preferans is an old Russian intellectual card game.
+  Preferans is a "commercial" game: a game for stakes in which the result depends far more on the player's skill than on luck, unlike games of chance.
+  Money is not part of the strategy in Preferans, which makes it an entirely optional part of the game.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Preferans is played by three or four players, and there is also a special variant for two.
+  The game is divided into deals.
+  In every deal a 32-card deck is dealt to three players*, 10 cards each, and two cards are set aside as the so-called "talon".
+  The deck contains all four suits starting from the 7. That is, 8 cards (7, 8, 9, 10, J, Q, K, A) in each suit.
+
+  * — with four players, one player sits out each deal; with two players, one of the two plays for the third.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  The player sitting after the dealer leads first. He puts one card from his hand on the table, the next player puts the next card, and then the last player at the table.
+  The player whose card is the highest takes the trick (removes the cards from the table) and leads again.
+  The result of the deal depends on how many tricks each player has taken. Which particular cards were on the table does not matter at all — only who took the trick.
+  There are 10 tricks in every deal.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  When a trick is played, the lead (the first card) can be any card, but if a card is already on the table, you must follow with a card of the same suit.
+  If you have no cards of that suit, you must play a trump. If you have no trumps either, you may play any card.
+  The trick is taken by the highest trump or, if there are no trumps, by the highest card of the suit that was led (the same suit as the first card played).
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  As mentioned, the result of each deal — the number of whists (which can be converted into money) — depends on how many tricks each player has taken.
+  But if the whole game came down to grabbing as many tricks as possible, it would not be nearly as fascinating!
+  Before the tricks are played, the players bid for the right to declare the game and take the "talon" (the two cards set aside in every deal).
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  The player who wins the auction takes the talon, first showing it to the other players, then face down (showing no one) discards the 2 cards least useful to him (so that he keeps 10 cards, like the other players).
+  Then he declares the trump suit and how many tricks he intends to take.
+  This declaration is called the contract.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  If the player fulfils the contract (takes exactly as many tricks as declared, or more), he receives a large number of whists.
+  The higher the contract, the more whists he gets.
+  However, if he fails to take the required number of tricks, he receives an even larger penalty, which grows with every trick he falls short.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  So the player must assess his hand in advance and decide how many tricks he can take.
+  Obviously, all the top cards of a suit, if they run in sequence, are certain to take their tricks.
+  For example: A, K — 2 tricks; A, K, Q — 3, and so on.
+  But even without the top card, or even two of them, consecutive cards still take their tricks.
+  For example: K, Q — 1 trick; Q, J, 10 — also 1 trick; and K, Q, J, 10 — 3 tricks.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Another way to win tricks is a long suit.
+  The fourth card of any suit almost always (88%) yields a trick (the opponents simply run out of cards to follow with).
+  Likewise the 5th, 6th, 7th and 8th cards are a 100% trick each.
+  Examples: A, K, J, 9, 7 — 4 tricks if one opponent holds all the remaining cards of the suit, and 5 tricks if the suit is split between the two hands.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  In this way we count the tricks in all 4 suits and add them up.
+  The minimum number of tricks a player must take (the minimum contract) is 6.
+  You should declare as trump the suit that is longest (has the most cards).
+  If several suits are equal in length, declare the one whose cards are weaker.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  In extremely rare cases you should declare a game with no trumps.
+  But you may only do this when you hold the top cards in every suit.
+  In a no-trump game long suits usually do not yield tricks.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  We have roughly explained what a contract is and how to estimate the number of tricks in your hand.
+  Don't worry if you have not grasped all of it right away.
+  Understanding comes with experience, and during play you can always use the "Advice" button.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  The bidding for the right to declare the contract goes as follows.
+  The first player either says "pass" and takes no further part in the auction, or announces the minimum contract he is willing to play.
+  Then the second player does the same, but if he wants the contract he must announce a higher one.
+  Then the third player, then the turn returns to the first, and so on.
+  The auction continues until only one player willing to play remains and all the others have passed.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Contracts are ranked by the number of tricks and, when equal, by the rank of the trump suit.
+  Preferans uses this order of suits: spades ♠, clubs ♣, diamonds ♦, hearts ♥.
+  Example auction: 1st — pass, 2nd — 6♠, 3rd — 6♣, 2nd — 7♠, 3rd — pass.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  In the auction, bid up to 6 if you hold 5 tricks (you will almost always gain one trick from the talon).
+  Then the talon is taken, cards are discarded, and the final contract is declared — it may be higher, but never lower, than what was already announced.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  If all 3 players say pass, a special variant called the "all-pass" round (raspasy) is played.
+  In an all-pass round, the more tricks a player takes, the bigger his penalty — you must try NOT to take tricks.
+  When playing an all-pass round, try to remember which cards have gone and keep the low cards of each suit, so you can always hand a trick to somebody else.
+  Play your strong cards first, starting with the short suits (the suits where you hold few cards).
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  After the declarer announces the final contract, the two remaining players must decide whether to play against him or not.
+  If a player is ready to oppose the declarer, he says "whist". If not — "pass". A player who said whist is called a whister.
+  A whister always receives a small number of whists, unlike the passer.
+  But if the whisters manage to "set" the declarer, preventing him from making his contract, both the whister and the passer receive a big bonus.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  If both players say "pass", the deal is not played out and the declarer is simply credited with the game he declared.
+  If both whist, the game is played closed, and each whister answers for himself — but it is still in their interest to fight the declarer, since they receive many whists if he falls short.
+  If only one player whists, he bears full responsibility (penalties and bonuses) for the other player's actions and may play openly.
+  In open play the whister and the passer lay their cards face up on the table and the whister directs both hands.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Whisting openly is usually more profitable.
+  A whister is obliged to take a certain number of tricks depending on the declarer's contract.
+  Against a 6-game — 4 tricks for two whisters, or 2 alone; against a 7-game — 2 for two, or 1 alone; against an 8- or 9-game — 1 trick for two. A 10-game is checked (no whist or pass is said; it is simply played open).
+  If one whister falls short but the other takes more than required, nobody is penalised.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  One more special contract is the "misère".
+  Misère is a contract in which the player undertakes to take no tricks at all.
+  Misère can only be declared immediately (you cannot switch from an ordinary bid to misère during the auction).
+  Misère can be outbid by a 9-game (9 tricks).
+  Misère is a very expensive and very risky game.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  A "clean" misère is one in which the player can avoid taking a single trick no matter how hard his opponents try.
+  For a clean misère every suit must be "clean" — free of "holes".
+  Each suit must start from the 7, and for every missing card there must be a lower card in the hand.
+  Examples of clean suits: 7, 8, 9;  7, 9, J, K, A;  7, 8, J.
+  Examples of holes: 8;  7, 10;  7, 8, 9, A.
+  Do not play misère if you have more than 1 hole.
+      </Text>
+    </LearningStage>
+    <LearningStage i:type="TextStage">
+      <Text>
+  Congratulations — you now know how to play Preferans!
+  Try a game, and remember: you can always use the "Advice" button in a difficult spot.
+      </Text>
+    </LearningStage>
+  </Stages>
+</LearningCourse>
