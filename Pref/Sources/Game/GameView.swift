@@ -85,8 +85,14 @@ struct GameView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let kx = geo.size.width / TableLayout.W
-            let ky = geo.size.height / TableLayout.H
+            // Portrait: stretch the 480x716 canvas to fill (original behavior).
+            // Landscape (iPad multitasking): aspect-fit and center the table.
+            let isLandscape = geo.size.width > geo.size.height
+            let scale = min(geo.size.width / TableLayout.W, geo.size.height / TableLayout.H)
+            let tableW = isLandscape ? TableLayout.W * scale : geo.size.width
+            let tableH = isLandscape ? TableLayout.H * scale : geo.size.height
+            let kx = tableW / TableLayout.W
+            let ky = tableH / TableLayout.H
             let cardW = TableLayout.S0 * kx
             let cardH = cardW * 96.0 / 70.0
 
@@ -94,7 +100,7 @@ struct GameView: View {
                 // Background
                 Image(uiImage: images.background())
                     .resizable()
-                    .frame(width: geo.size.width, height: geo.size.height)
+                    .frame(width: tableW, height: tableH)
                     .onTapGesture { vm.onCanvasTap() }
 
                 let info = vm.info
@@ -253,6 +259,8 @@ struct GameView: View {
                         .offset(x: 24 * kx, y: 18 * ky)
                 }
             }
+            .frame(width: tableW, height: tableH)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Theme.tableGreenDark)
         .navigationBarTitleDisplayMode(.inline)

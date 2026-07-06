@@ -225,8 +225,13 @@ struct CalcSheetView: View {
                 .padding(.bottom, 4)
 
             GeometryReader { geo in
-                let kx = geo.size.width / SHEET_W
-                let ky = geo.size.height / SHEET_H
+                // Landscape (iPad): aspect-fit the 480x550 sheet and center it.
+                let isLandscape = geo.size.width > geo.size.height
+                let scale = min(geo.size.width / SHEET_W, geo.size.height / SHEET_H)
+                let sheetW = isLandscape ? SHEET_W * scale : geo.size.width
+                let sheetH = isLandscape ? SHEET_H * scale : geo.size.height
+                let kx = sheetW / SHEET_W
+                let ky = sheetH / SHEET_H
 
                 ZStack(alignment: .topLeading) {
                     let _ = version // recompute cells on model change
@@ -287,6 +292,8 @@ struct CalcSheetView: View {
                         }
                     }
                 }
+                .frame(width: sheetW, height: sheetH)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
             // Bottom action bar
