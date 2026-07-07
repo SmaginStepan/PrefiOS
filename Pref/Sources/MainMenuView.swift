@@ -37,21 +37,22 @@ struct MainMenuView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // Branding: title on ONE line (auto-shrinks, never wraps),
-                // serif-italic letter-spaced subtitle right-aligned beneath.
-                Text(L("app_name"))
-                    .font(.system(size: 56, design: .serif))
-                    .foregroundColor(Theme.accentGold)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text(L("menu_subtitle"))
-                    .font(.system(size: 22, design: .serif))
-                    .italic()
-                    .kerning(6)
-                    .foregroundColor(Theme.accentGold.opacity(0.75))
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.bottom, 24)
+                // Branding: title on ONE line (auto-shrinks, never wraps) with
+                // the serif-italic subtitle tucked under the title's right
+                // edge (not the screen's — matters on wide iPad layouts).
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text(L("app_name"))
+                        .font(.system(size: 56, design: .serif))
+                        .foregroundColor(Theme.accentGold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.3)
+                    Text(L("menu_subtitle"))
+                        .font(.system(size: 22, design: .serif))
+                        .italic()
+                        .kerning(6)
+                        .foregroundColor(Theme.accentGold.opacity(0.75))
+                }
+                .padding(.bottom, 24)
                 MenuItem(title: L("menu_new_game"), subtitle: L("menu_new_game_sub"), onClick: onNewGame)
                 if hasSavedGame {
                     MenuItem(title: L("menu_continue"), subtitle: L("menu_continue_sub"), onClick: onContinue)
