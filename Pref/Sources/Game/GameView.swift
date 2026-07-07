@@ -326,8 +326,8 @@ struct GameView: View {
                 if !vm.busy && !vm.menuBids.isEmpty
                     && (info.phase == .Negotiations || info.phase == .GameChoose) {
                     BidMenu(vm: vm)
-                        .frame(width: 203 * kx, height: 286 * ky)
-                        .offset(x: 139 * kx, y: 37 * ky)
+                        .frame(width: 180 * kx, height: 240 * ky)
+                        .offset(x: 150 * kx, y: 37 * ky)
                 }
 
                 // Choice buttons (in hosted games: only on turns the local player controls)
@@ -463,18 +463,18 @@ struct GameView: View {
         }()
         if let label = btn1Label {
             Button { vm.onButton1() } label: {
-                Text(label).lineLimit(1).frame(width: 176 * kx)
+                Text(label).lineLimit(1).frame(width: 150 * kx)
             }
             .buttonStyle(.borderedProminent)
-            .offset(x: 152 * kx, y: 330 * ky)
+            .offset(x: 165 * kx, y: 330 * ky)
         }
         if let label = btn2Label {
             Button { vm.onButton2() } label: {
-                Text(label).lineLimit(1).frame(width: 176 * kx)
+                Text(label).lineLimit(1).frame(width: 150 * kx)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!btn2Enabled)
-            .offset(x: 152 * kx, y: 385 * ky)
+            .offset(x: 165 * kx, y: 385 * ky)
         }
     }
 }
@@ -492,6 +492,8 @@ private struct BidMenu: View {
                         Text(GameTexts.bidTitle(bid))
                             .foregroundColor(selected ? Theme.accentYellow : .white)
                             .font(.system(size: 20))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.65)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(10)
                             .contentShape(Rectangle())

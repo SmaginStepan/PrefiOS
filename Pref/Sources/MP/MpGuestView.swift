@@ -202,6 +202,8 @@ struct MpGuestView: View {
                                 Text(GameTexts.bidTitle(bid))
                                     .foregroundColor(vm.selectedBid === bid ? Theme.accentYellow : .white)
                                     .font(.system(size: 20))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.65)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(10)
                                     .contentShape(Rectangle())
@@ -209,10 +211,10 @@ struct MpGuestView: View {
                             }
                         }
                     }
-                    .frame(width: 203 * kx, height: 286 * ky)
+                    .frame(width: 180 * kx, height: 240 * ky)
                     .background(Color(red: 0x12 / 255.0, green: 0x3B / 255.0, blue: 0x16 / 255.0).opacity(0.4))
                     .border(Color(red: 0x2E / 255.0, green: 0x7D / 255.0, blue: 0x32 / 255.0).opacity(0.4), width: 1)
-                    .offset(x: 139 * kx, y: 37 * ky)
+                    .offset(x: 150 * kx, y: 37 * ky)
                 }
 
                 // ask buttons
@@ -299,18 +301,18 @@ struct MpGuestView: View {
         }()
         if let (label, action) = btn1 {
             Button(action: action) {
-                Text(label).lineLimit(1).frame(width: 176 * kx)
+                Text(label).lineLimit(1).frame(width: 150 * kx)
             }
             .buttonStyle(.borderedProminent)
-            .offset(x: 152 * kx, y: 330 * ky)
+            .offset(x: 165 * kx, y: 330 * ky)
         }
         if let (label, enabled, action) = btn2 {
             Button(action: action) {
-                Text(label).lineLimit(1).frame(width: 176 * kx)
+                Text(label).lineLimit(1).frame(width: 150 * kx)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!enabled)
-            .offset(x: 152 * kx, y: 385 * ky)
+            .offset(x: 165 * kx, y: 385 * ky)
         }
     }
 }
