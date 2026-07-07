@@ -189,7 +189,9 @@ struct GameView: View {
             let tableH = isLandscape ? TableLayout.H * scale : geo.size.height
             let kx = tableW / TableLayout.W
             let ky = tableH / TableLayout.H
-            let cardW = TableLayout.S0 * kx
+            // Slightly smaller than the 70-unit layout slot (58-unit hand step),
+            // so a thin gap separates the cards in every hand.
+            let cardW = 56.0 * kx
             let cardH = cardW * 96.0 / 70.0
 
             ZStack(alignment: .topLeading) {
