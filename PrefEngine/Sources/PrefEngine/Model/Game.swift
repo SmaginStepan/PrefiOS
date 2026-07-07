@@ -71,6 +71,11 @@ public final class Game: Codable {
     /// and an external session dispatches each seat. Transient.
     public var externalDriver: Bool = false
 
+    /// The game plays exactly one deal and then Ends (instead of dealing the
+    /// next). Used by 4-player multiplayer, where every deal is a 3-player
+    /// game among the non-dealers and the session owns the match. Transient.
+    public var singleDealMode: Bool = false
+
     public final class Animation {
         public var player: Int = 0
         public var card: Card?
@@ -165,6 +170,20 @@ public final class Game: Codable {
             return true // Если игрок спасовал, то он не ходит сам
         }
         return false
+    }
+
+    /// Who decides the current move. Normally the player in turn, but in an
+    /// open normal game the whister also plays the passing player's cards
+    /// (same rule isAI() applies in single player; hosted multiplayer needs
+    /// it explicitly because externalDriver disables isAI()).
+    public func turnController() -> Int {
+        if phase == .Playing && currentGameType == .Normal &&
+            playerInTurn != contractor && isOpened && isVister[playerInTurn] != true {
+            if let whister = isVister.entries.first(where: { $0.value })?.key {
+                return whister
+            }
+        }
+        return playerInTurn
     }
 
     // MARK: - Начало игры
@@ -624,7 +643,8 @@ public final class Game: Codable {
                     return false
                 }
                 if !onlyCheck {
-                    if isAI() {
+                    // externalDriver: the hosting UI animates every seat's play
+                    if isAI() || externalDriver {
                         let animation = Animation()
                         animation.player = playerInTurn
                         animation.card = card
@@ -790,7 +810,10 @@ public final class Game: Codable {
     private func scoreNext() throws {
         if playersToWait == 0 {
             // Все посмотрели счёт
-            if !calc.isFinished {
+            if singleDealMode {
+                // 4-player match: the session owns the deal cycle
+                phase = .Ended
+            } else if !calc.isFinished {
                 // Новый розыгрыш
                 try newDeal()
             } else {

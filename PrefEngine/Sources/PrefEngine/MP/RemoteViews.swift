@@ -10,12 +10,13 @@ public enum RemoteViews {
     }
 
     /// Port of TableLayout.computeField from one viewer's perspective.
-    public static func buildFieldFor(_ game: Game, _ viewer: Int) -> [PlacedCard] {
+    /// `spectator`: no hand is "own" (the sitting 4p dealer watches).
+    public static func buildFieldFor(_ game: Game, _ viewer: Int, spectator: Bool = false) -> [PlacedCard] {
         var res: [PlacedCard] = []
         let deal = game.deal
 
         for hand in 0..<3 {
-            let faceUp = hand == viewer || deal.hands[hand].isVisible
+            let faceUp = (!spectator && hand == viewer) || deal.hands[hand].isVisible
             res.append(contentsOf: TableLayout.handPlacements(
                 deal.hands[hand].cards,
                 rot(hand, viewer),
@@ -58,7 +59,12 @@ public enum RemoteViews {
     }
 
     /// Port of GameViewModel.buildTableInfo from one viewer's perspective.
-    public static func buildTableInfoFor(_ game: Game, _ viewer: Int) -> TableInfo {
+    public static func buildTableInfoFor(
+        _ game: Game,
+        _ viewer: Int,
+        watching: Bool = false,
+        sitOutName: String? = nil
+    ) -> TableInfo {
         func rotList<T>(_ src: [T]) -> [T] {
             (0..<3).map { rel in src[(rel + viewer) % 3] }
         }
@@ -82,6 +88,9 @@ public enum RemoteViews {
         info.maxBid = game.maxBid
         info.playerToTake = rot(game.playerToTake, viewer)
         info.playerInTurn = rot(game.playerInTurn, viewer)
+        info.controller = rot(game.turnController(), viewer)
+        info.watching = watching
+        info.sitOutName = sitOutName
         info.gameResult = game.phase == .EndPlay ? rotResult(game.getGameResult(), viewer) : nil
         info.showPrikupBtn1 = false
         info.showPrikupBtn2 = false
@@ -89,19 +98,29 @@ public enum RemoteViews {
         return info
     }
 
-    /// Score standing rotated for one viewer (whists as the written sum).
-    public static func buildScoresFor(_ game: Game, _ viewer: Int) -> ScoreSnap {
+    /// Score standing rotated for one viewer, with the full whist matrix.
+    /// Works for 3- and 4-column pulkas; `viewer` indexes the calc's players.
+    public static func buildScoresFrom(_ calc: Calculation, _ viewer: Int) -> ScoreSnap {
+        let n = calc.playersCount
         func idx(_ rel: Int) -> Int {
-            (rel + viewer) % 3
+            (rel + viewer) % n
         }
-        let sc = game.calc.scores
+        let sc = calc.scores
         return ScoreSnap(
-            names: (0..<3).map { sc[idx($0)].name },
-            pulya: (0..<3).map { sc[idx($0)].pulya },
-            gora: (0..<3).map { sc[idx($0)].gora },
-            whists: (0..<3).map { i in sc[idx(i)].visty.values.reduce(0, +) },
-            limit: game.calc.limit
+            names: (0..<n).map { sc[idx($0)].name },
+            pulya: (0..<n).map { sc[idx($0)].pulya },
+            gora: (0..<n).map { sc[idx($0)].gora },
+            visty: (0..<n).map { i in
+                (0..<n).map { j in i == j ? 0 : (sc[idx(i)].visty[idx(j)] ?? 0) }
+            },
+            limit: calc.limit,
+            // at ScoreView calc.dealer already points at the next deal's dealer
+            dealer: (calc.dealer - viewer + n) % n
         )
+    }
+
+    public static func buildScoresFor(_ game: Game, _ viewer: Int) -> ScoreSnap {
+        buildScoresFrom(game.calc, viewer)
     }
 
     /// What the current actor must answer, by phase.

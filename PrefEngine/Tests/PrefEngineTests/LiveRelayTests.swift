@@ -145,21 +145,23 @@ final class LiveRelayTests: XCTestCase {
             case .started:
                 bothStarted.fulfill()
                 gameQueue.async {
-                    let game = Game.create()
-                    game.calc.limit = 2 // short game over the network
-                    game.calc.scores[0].name = "iOS host"
-                    game.calc.scores[1].name = "iOS guest"
-                    game.calc.scores[2].name = "bot"
+                    let names = ["iOS host", "iOS guest", "bot"]
+                    let matchCalc = Calculation(playersCount: 3, limit: 2) // short game over the network
+                    for (i, name) in names.enumerated() {
+                        matchCalc.scores[i].name = name
+                    }
                     let s = HostGameSession(
-                        game: game,
                         seats: [.bot, .remote, .bot], // own seat bot-driven for automation
+                        names: names,
+                        matchCalc: matchCalc,
                         sendToSeat: { seat, state in
                             // redaction check against the authoritative game state
                             // (runs on gameQueue while the game is quiescent)
+                            let hands = session?.game.deal.hands
                             for pc in state.field
                             where (1...2).contains(pc.hand) && !pc.isInPlay && !pc.isPrikup && pc.card != nil {
                                 let absolute = (pc.hand + seat) % 3
-                                if !game.deal.hands[absolute].isVisible {
+                                if hands?[absolute].isVisible == false {
                                     leaks += 1
                                 }
                             }
@@ -220,8 +222,8 @@ final class LiveRelayTests: XCTestCase {
 
         gameQueue.sync {
             XCTAssertEqual(GamePhase.Ended, session?.game.phase)
-            XCTAssertTrue(!(session?.game.calc.gameLog.isEmpty ?? true), "deals were played")
-            print("LIVE: deals=\(session?.game.calc.gameLog.count ?? 0) badMoves=\(guestBadMoves)")
+            XCTAssertTrue(!(session?.matchCalc.gameLog.isEmpty ?? true), "deals were played")
+            print("LIVE: deals=\(session?.matchCalc.gameLog.count ?? 0) badMoves=\(guestBadMoves)")
         }
         XCTAssertTrue(guestSawEnded, "guest saw the ended state")
         XCTAssertEqual(0, leaks, "no hidden cards may leak over the live relay")

@@ -18,20 +18,38 @@ public struct Ask: Codable {
     }
 }
 
-/// Compact score standing shown between deals (already rotated per viewer).
+/// Score standing shown between deals (already rotated per viewer).
 public struct ScoreSnap: Codable {
     public var names: [String]
     public var pulya: [Int]
     public var gora: [Int]
-    public var whists: [Int]
+    /// visty[i][j] = whists player i has written on player j (diagonal 0).
+    public var visty: [[Int]]
     public var limit: Int
+    /// who deals the next deal (viewer-relative); lets a guest save a resumable pulka
+    public var dealer: Int
 
-    public init(names: [String], pulya: [Int], gora: [Int], whists: [Int], limit: Int) {
+    public init(names: [String], pulya: [Int], gora: [Int], visty: [[Int]], limit: Int, dealer: Int = 0) {
         self.names = names
         self.pulya = pulya
         self.gora = gora
-        self.whists = whists
+        self.visty = visty
         self.limit = limit
+        self.dealer = dealer
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case names, pulya, gora, visty, limit, dealer
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        names = try c.decode([String].self, forKey: .names)
+        pulya = try c.decode([Int].self, forKey: .pulya)
+        gora = try c.decode([Int].self, forKey: .gora)
+        visty = try c.decodeIfPresent([[Int]].self, forKey: .visty) ?? []
+        limit = try c.decode(Int.self, forKey: .limit)
+        dealer = try c.decodeIfPresent(Int.self, forKey: .dealer) ?? 0
     }
 }
 

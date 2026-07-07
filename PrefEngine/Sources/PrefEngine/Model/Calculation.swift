@@ -520,6 +520,85 @@ public final class Calculation: Codable {
         }
     }
 
+    /// Copy with the player columns rearranged: new index i takes old column
+    /// order[i]. Every player reference (visty keys, game log, score log,
+    /// dealer) is remapped, so a saved pulka can seat its players differently
+    /// when a multiplayer game resumes from it.
+    public func reordered(_ order: [Int]) -> Calculation {
+        var inv = [Int](repeating: 0, count: playersCount)
+        for i in order.indices {
+            inv[order[i]] = i
+        }
+        func mp(_ p: Int) -> Int {
+            (0..<playersCount).contains(p) ? inv[p] : p
+        }
+        func mpEntry(_ c: ScoreEntry) -> ScoreEntry {
+            let it = ScoreEntry()
+            it.scoreType = c.scoreType
+            it.playerNum = mp(c.playerNum)
+            it.refPlayerNum = mp(c.refPlayerNum)
+            it.value = c.value
+            return it
+        }
+        let out = Calculation()
+        out.limit = limit
+        out.created = created
+        out.dealer = mp(dealer)
+        out.rules = rules.clone()
+        out.scores = order.map { old in
+            let s = scores[old]
+            let n = Player()
+            n.name = s.name
+            n.gora = s.gora
+            n.pulya = s.pulya
+            n.score = s.score
+            for (k, v) in s.visty.entries {
+                n.visty[mp(k)] = v
+            }
+            return n
+        }
+        out.gameLog = gameLog.map { g in
+            let n = GameResult()
+            n.gameType = g.gameType
+            n.dealer = mp(g.dealer)
+            n.contractor = mp(g.contractor)
+            n.contract = g.contract
+            for (k, v) in g.taken.entries {
+                n.taken[mp(k)] = v
+            }
+            n.visters = g.visters.map { mp($0) }
+            n.multiplier = g.multiplier
+            n.halfWithDealer = g.halfWithDealer
+            n.customScore = g.customScore.map { mpEntry($0) }
+            return n
+        }
+        out.log = log.map { mpEntry($0) }
+        return out
+    }
+
+    /// Which pulka column each seat should take: match by name first
+    /// (trimmed, case-insensitive), the rest keep their relative order.
+    public static func seatOrder(_ seatNames: [String], _ calc: Calculation) -> [Int] {
+        let n = calc.playersCount
+        var taken = [Bool](repeating: false, count: n)
+        var order = [Int](repeating: -1, count: Swift.min(seatNames.count, n))
+        for i in order.indices {
+            let name = seatNames[i].trimmingCharacters(in: .whitespaces).lowercased()
+            if let hit = (0..<n).first(where: {
+                !taken[$0] && calc.scores[$0].name.trimmingCharacters(in: .whitespaces).lowercased() == name
+            }) {
+                order[i] = hit
+                taken[hit] = true
+            }
+        }
+        for i in order.indices where order[i] < 0 {
+            let free = (0..<n).first { !taken[$0] }!
+            order[i] = free
+            taken[free] = true
+        }
+        return order
+    }
+
     public func save() {
         let name = Calculation.getFileName(created: created, playersCount: playersCount, limit: limit)
         save(name)

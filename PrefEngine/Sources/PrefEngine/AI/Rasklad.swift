@@ -20,7 +20,7 @@ public final class Rasklad {
         }
     }
 
-    public func fromPlay(_ info: AIInfo) {
+    public func fromPlay(_ info: AIInfo) throws {
         probability = 1.0
         byColor = [:]
         for i in 0..<4 {
@@ -33,9 +33,14 @@ public final class Rasklad {
             let myHand = IntList(info.myHand.visibleHand!.cardByCoat[i]!.map { $0.value }.sorted())
 
             if prevHand == nil {
+                // Kotlin dereferences nextHand here (NPE when both hands are
+                // hidden); the session's Playing-phase fallback catches it.
+                guard let nh = nextHand else {
+                    throw PrefError("Обе руки закрыты — расклад не построить")
+                }
                 let list = IntList()
                 for v in 7..<15 {
-                    if !myHand.contains(v) && !nextHand!.contains(v) && !info.prevHand.colorNotExists.contains(i) && info.outOfPlayByColor[i]!.first(where: { $0.value == v }) == nil {
+                    if !myHand.contains(v) && !nh.contains(v) && !info.prevHand.colorNotExists.contains(i) && info.outOfPlayByColor[i]!.first(where: { $0.value == v }) == nil {
                         list.append(v)
                     }
                 }

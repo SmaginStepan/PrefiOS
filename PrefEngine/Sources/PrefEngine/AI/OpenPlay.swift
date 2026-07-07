@@ -42,7 +42,7 @@ open class OpenPlay {
             // Думать нечего
             return allowedMoves[0]
         }
-        let situation = GameSituation(game, info, self)
+        let situation = try GameSituation(game, info, self)
         let distinctMoves = try situation.getDistinctMoves()
         if distinctMoves.isEmpty {
             // Думать всё равно нечего...

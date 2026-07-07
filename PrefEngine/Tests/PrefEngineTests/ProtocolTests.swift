@@ -133,6 +133,44 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual("bid", s.ask?.kind)
     }
 
+    func testScoreSnapBothDirections() throws {
+        // encode: full whist matrix + next dealer, no nulls
+        let snap = ScoreSnap(
+            names: ["A", "B", "C", "D"],
+            pulya: [1, 2, 3, 4],
+            gora: [0, 0, 5, 0],
+            visty: [[0, 10, 0, 0], [0, 0, 0, 0], [0, 0, 0, 20], [0, 0, 0, 0]],
+            limit: 10,
+            dealer: 2
+        )
+        let state = GameMsg.state(GameMsg.State(field: [], info: TableInfo(), yourTurn: false, scores: snap))
+        let wire = try WireJSON.encodeToString(state)
+        XCTAssertTrue(wire.contains("\"visty\":[[0,10,0,0],[0,0,0,0],[0,0,0,20],[0,0,0,0]]"))
+        XCTAssertTrue(wire.contains("\"dealer\":2"))
+        XCTAssertTrue(wire.contains("\"watching\":false"), "TableInfo gained watching")
+        XCTAssertTrue(wire.contains("\"controller\":0"), "TableInfo gained controller")
+        XCTAssertFalse(wire.contains("null"))
+
+        // decode an Android-shaped snapshot (3p)
+        let android = """
+        {"t":"state","field":[],"info":{"phase":"ScoreView","names":["a","b","c"],"dealer":1,\
+        "taken":[0,0,0],"currentGameType":"Normal","contractor":0,"isVister":{},"curentBids":{},\
+        "playerToTake":0,"playerInTurn":0,"controller":2,"watching":true,"sitOutName":"Dana",\
+        "showPrikupBtn1":false,"showPrikupBtn2":false,"showPrikupHideBtn":false,"showTricksBtn":false},\
+        "yourTurn":false,"badMove":false,"ended":false,\
+        "scores":{"names":["a","b","c"],"pulya":[1,2,3],"gora":[4,5,6],\
+        "visty":[[0,7,8],[9,0,1],[2,3,0]],"limit":10,"dealer":1}}
+        """
+        guard case .state(let st) = try WireJSON.decodeFromString(GameMsg.self, android) else {
+            return XCTFail("expected state")
+        }
+        XCTAssertEqual(2, st.info.controller)
+        XCTAssertTrue(st.info.watching)
+        XCTAssertEqual("Dana", st.info.sitOutName)
+        XCTAssertEqual([9, 0, 1], st.scores?.visty[1])
+        XCTAssertEqual(1, st.scores?.dealer)
+    }
+
     func testRoomRulesPayload() throws {
         // {"gameRules": <GameRules by field name>, "limit": n}
         let rules = GameRules()

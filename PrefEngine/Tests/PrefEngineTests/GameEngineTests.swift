@@ -44,6 +44,27 @@ final class GameEngineTests: XCTestCase {
         }
     }
 
+    func testPulkaReorderRemapsAllPlayerReferences() {
+        let c = Calculation(playersCount: 3, limit: 10)
+        c.scores[0].name = "Anna"
+        c.scores[1].name = "Boris"
+        c.scores[2].name = "Clara"
+        c.scores[1].pulya = 5
+        c.scores[1].gora = 12
+        c.scores[1].visty[2] = 40
+        c.dealer = 1
+
+        // Boris hosts the resumed game; Clara joins; a bot takes Anna's column
+        let order = Calculation.seatOrder(["boris ", "CLARA", "Bot"], c)
+        XCTAssertEqual([1, 2, 0], order, "name match with order fallback")
+
+        let r = c.reordered(order)
+        XCTAssertTrue(r.scores[0].name == "Boris" && r.scores[0].pulya == 5 && r.scores[0].gora == 12)
+        XCTAssertEqual(40, r.scores[0].visty[1], "visty keys remapped (Boris on Clara)")
+        XCTAssertEqual(0, r.dealer, "dealer follows its player")
+        XCTAssertTrue(r.limit == c.limit && r.created == c.created, "limit and created preserved")
+    }
+
     func testSavesAndLoadsGame() throws {
         let game = Game.create()
         try game.next() // deals cards, runs negotiations until human input is needed

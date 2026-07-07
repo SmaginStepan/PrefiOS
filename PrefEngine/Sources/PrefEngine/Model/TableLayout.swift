@@ -73,17 +73,26 @@ public struct TableInfo: Codable {
     public var maxBid: Game.Bid?
     public var playerToTake: Int = 0
     public var playerInTurn: Int = 0
+    /// who acts now; differs from playerInTurn when the whister moves for the passer
+    public var controller: Int = 0
+    /// the viewer sits out this deal (4-player: the dealer watches)
+    public var watching: Bool = false
+    /// name of the sitting 4-player dealer, shown top-center
+    public var sitOutName: String?
     public var gameResult: Calculation.GameResult?
     public var showPrikupBtn1: Bool = false
     public var showPrikupBtn2: Bool = false
+    /// the hand-with-talon view is active; offer the hide button (local-only)
+    public var showPrikupHideBtn: Bool = false
     public var showTricksBtn: Bool = false
 
     public init() {}
 
     private enum CodingKeys: String, CodingKey {
         case phase, names, dealer, taken, currentGameType, contractor, isVister,
-             curentBids, maxBid, playerToTake, playerInTurn, gameResult,
-             showPrikupBtn1, showPrikupBtn2, showTricksBtn
+             curentBids, maxBid, playerToTake, playerInTurn, controller, watching,
+             sitOutName, gameResult, showPrikupBtn1, showPrikupBtn2,
+             showPrikupHideBtn, showTricksBtn
     }
 
     public init(from decoder: Decoder) throws {
@@ -99,9 +108,13 @@ public struct TableInfo: Codable {
         maxBid = try c.decodeIfPresent(Game.Bid.self, forKey: .maxBid)
         playerToTake = try c.decodeIfPresent(Int.self, forKey: .playerToTake) ?? 0
         playerInTurn = try c.decodeIfPresent(Int.self, forKey: .playerInTurn) ?? 0
+        controller = try c.decodeIfPresent(Int.self, forKey: .controller) ?? 0
+        watching = try c.decodeIfPresent(Bool.self, forKey: .watching) ?? false
+        sitOutName = try c.decodeIfPresent(String.self, forKey: .sitOutName)
         gameResult = try c.decodeIfPresent(Calculation.GameResult.self, forKey: .gameResult)
         showPrikupBtn1 = try c.decodeIfPresent(Bool.self, forKey: .showPrikupBtn1) ?? false
         showPrikupBtn2 = try c.decodeIfPresent(Bool.self, forKey: .showPrikupBtn2) ?? false
+        showPrikupHideBtn = try c.decodeIfPresent(Bool.self, forKey: .showPrikupHideBtn) ?? false
         showTricksBtn = try c.decodeIfPresent(Bool.self, forKey: .showTricksBtn) ?? false
     }
 
@@ -118,9 +131,13 @@ public struct TableInfo: Codable {
         try c.encodeIfPresent(maxBid, forKey: .maxBid)
         try c.encode(playerToTake, forKey: .playerToTake)
         try c.encode(playerInTurn, forKey: .playerInTurn)
+        try c.encode(controller, forKey: .controller)
+        try c.encode(watching, forKey: .watching)
+        try c.encodeIfPresent(sitOutName, forKey: .sitOutName)
         try c.encodeIfPresent(gameResult, forKey: .gameResult)
         try c.encode(showPrikupBtn1, forKey: .showPrikupBtn1)
         try c.encode(showPrikupBtn2, forKey: .showPrikupBtn2)
+        try c.encode(showPrikupHideBtn, forKey: .showPrikupHideBtn)
         try c.encode(showTricksBtn, forKey: .showTricksBtn)
     }
 }

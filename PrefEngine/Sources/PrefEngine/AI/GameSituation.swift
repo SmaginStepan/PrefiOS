@@ -222,7 +222,7 @@ public final class GameSituation {
         return res
     }
 
-    public init(_ game: Game, _ info: AIInfo, _ gamePlay: OpenPlay) {
+    public init(_ game: Game, _ info: AIInfo, _ gamePlay: OpenPlay) throws {
         self.gamePlay = gamePlay
 
         if game.playerInTurn == game.contractor {
@@ -240,7 +240,7 @@ public final class GameSituation {
         trump = game.trump
 
         rasklad = Rasklad()
-        rasklad.fromPlay(info)
+        try rasklad.fromPlay(info)
 
         alreadyTaken = Taken()
 
