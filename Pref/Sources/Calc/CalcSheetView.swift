@@ -2,7 +2,7 @@ import SwiftUI
 import PrefEngine
 
 // Cell geometry in the original 480x550 canvas units.
-private struct Cell {
+struct Cell {
     let type: ScoreValueType
     let player: Int
     let refPlayer: Int
@@ -12,7 +12,7 @@ private struct Cell {
     var align: Alignment = .center
 }
 
-private struct NameLabel {
+struct NameLabel {
     let player: Int
     let x: Double
     let y: Double
@@ -20,14 +20,14 @@ private struct NameLabel {
     let align: Alignment
 }
 
-private struct DealerArrow {
+struct DealerArrow {
     let player: Int
     let x: Double
     let y: Double
     let up: Bool
 }
 
-private struct SheetLine {
+struct SheetLine {
     let x1: Double
     let y1: Double
     let x2: Double
@@ -41,7 +41,7 @@ private struct SheetLine {
     }
 }
 
-private let CELLS_3: [Cell] = [
+let CELLS_3: [Cell] = [
     Cell(type: .Visty, player: 1, refPlayer: 0, x: 0, y: 362, w: 71),
     Cell(type: .Visty, player: 1, refPlayer: 2, x: 0, y: 119, w: 71),
     Cell(type: .Pulya, player: 1, refPlayer: 0, x: 83, y: 320, w: 57),
@@ -56,19 +56,19 @@ private let CELLS_3: [Cell] = [
     Cell(type: .Visty, player: 2, refPlayer: 1, x: 396, y: 119, w: 80)
 ]
 
-private let NAMES_3: [NameLabel] = [
+let NAMES_3: [NameLabel] = [
     NameLabel(player: 0, x: 83, y: 536, w: 320, align: .center),
     NameLabel(player: 1, x: 0, y: 17, w: 214, align: .leading),
     NameLabel(player: 2, x: 283, y: 17, w: 186, align: .trailing)
 ]
 
-private let ARROWS_3: [DealerArrow] = [
+let ARROWS_3: [DealerArrow] = [
     DealerArrow(player: 0, x: 209, y: 510, up: false),
     DealerArrow(player: 1, x: 7, y: 43, up: true),
     DealerArrow(player: 2, x: 404, y: 43, up: true)
 ]
 
-private let LINES_3: [SheetLine] = {
+let LINES_3: [SheetLine] = {
     let s1 = 0.15, s2 = 0.30, s3 = 0.45
     let e1 = 0.85, e2 = 0.70, e3 = 0.55
     return [
@@ -87,7 +87,7 @@ private let LINES_3: [SheetLine] = {
     ]
 }()
 
-private let CELLS_4: [Cell] = [
+let CELLS_4: [Cell] = [
     Cell(type: .Visty, player: 1, refPlayer: 0, x: 0, y: 410, w: 71),
     Cell(type: .Visty, player: 1, refPlayer: 2, x: 0, y: 91, w: 71),
     Cell(type: .Visty, player: 1, refPlayer: 3, x: 0, y: 266, w: 71),
@@ -110,21 +110,21 @@ private let CELLS_4: [Cell] = [
     Cell(type: .Visty, player: 2, refPlayer: 3, x: 323, y: 17, w: 83)
 ]
 
-private let NAMES_4: [NameLabel] = [
+let NAMES_4: [NameLabel] = [
     NameLabel(player: 0, x: 187, y: 362, w: 112, align: .center),
     NameLabel(player: 1, x: 72, y: 263, w: 133, align: .center),
     NameLabel(player: 2, x: 187, y: 164, w: 118, align: .center),
     NameLabel(player: 3, x: 280, y: 264, w: 137, align: .center)
 ]
 
-private let ARROWS_4: [DealerArrow] = [
+let ARROWS_4: [DealerArrow] = [
     DealerArrow(player: 0, x: 210, y: 376, up: true),
     DealerArrow(player: 1, x: 126, y: 284, up: true),
     DealerArrow(player: 2, x: 211, y: 134, up: false),
     DealerArrow(player: 3, x: 296, y: 239, up: false)
 ]
 
-private let LINES_4: [SheetLine] = {
+let LINES_4: [SheetLine] = {
     let s1 = 0.15, s2 = 0.25, s3 = 0.45
     let e1 = 0.85, e2 = 0.75, e3 = 0.55
     return [
@@ -153,10 +153,10 @@ private let LINES_4: [SheetLine] = {
     ]
 }()
 
-private let SHEET_W = 480.0
-private let SHEET_H = 550.0
+let SHEET_W = 480.0
+let SHEET_H = 550.0
 
-private func cellValue(_ calc: Calculation, _ cell: Cell) -> String {
+func cellValue(_ calc: Calculation, _ cell: Cell) -> String {
     switch cell.type {
     case .Gora: return String(calc.scores[cell.player].gora)
     case .Pulya: return String(calc.scores[cell.player].pulya)

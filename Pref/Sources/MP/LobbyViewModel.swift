@@ -16,6 +16,9 @@ final class LobbyViewModel: ObservableObject {
     /// Transient server error / event code; the UI maps it to a localized text.
     @Published var notice: String?
 
+    /// A saved pulka the host wants to resume from when the game starts.
+    @Published var loadedCalc: Calculation?
+
     @Published private(set) var myName = ""
 
     /// Relayed game payloads: host receives (fromSeat, data); guests receive data.
@@ -78,15 +81,18 @@ final class LobbyViewModel: ObservableObject {
             currentRoom = nil
             mySeat = nil
             started = false
+            loadedCalc = nil
         case .kicked:
             currentRoom = nil
             mySeat = nil
             started = false
+            loadedCalc = nil
             notice = "kicked"
         case .roomClosed:
             currentRoom = nil
             mySeat = nil
             started = false
+            loadedCalc = nil
             notice = "room_closed"
         case .error(let code, _):
             notice = code

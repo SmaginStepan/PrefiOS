@@ -11,7 +11,7 @@ enum Route: Hashable {
     case sheet(players: Int, setup: Bool)
     case sheetGame
     case writeGame
-    case results
+    case results(fromGame: Bool)
     case resultsHigh
     case loadCalc
     case calcHelp
@@ -107,7 +107,7 @@ struct RootView: View {
                 fromGame: false,
                 startWithSetup: setup,
                 onHelp: { path.append(.calcHelp) },
-                onResults: { path.append(.results) },
+                onResults: { path.append(.results(fromGame: false)) },
                 onResultsHighscores: { path.append(.resultsHigh) },
                 onRecordGame: { path.append(.writeGame) },
                 onHistory: { path.append(.gameLog) },
@@ -121,7 +121,7 @@ struct RootView: View {
                 fromGame: true,
                 startWithSetup: false,
                 onHelp: { path.append(.calcHelp) },
-                onResults: { path.append(.results) },
+                onResults: { path.append(.results(fromGame: true)) },
                 onResultsHighscores: {
                     // popUpTo(MENU) + navigate
                     path = [.resultsHigh]
@@ -139,8 +139,10 @@ struct RootView: View {
                 Color.clear
             }
 
-        case .results:
-            if let calc = app.calc ?? app.game?.calc {
+        case .results(let fromGame):
+            // settle the pulka of the sheet this was opened from (running game
+            // vs standalone calculator) — never fall back across them
+            if let calc = fromGame ? app.game?.calc : app.calc {
                 CalcResultsView(calc: calc, onClose: { popBack() })
             } else {
                 Color.clear

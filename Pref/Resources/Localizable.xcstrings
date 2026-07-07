@@ -576,6 +576,29 @@
         }
       }
     },
+    "dealer_badge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "dealer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "reparte"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "сдаёт"
+          }
+        }
+      }
+    },
     "dict_search": {
       "extractionState": "manual",
       "localizations": {
@@ -783,6 +806,29 @@
         }
       }
     },
+    "game_btn_hide_prikup": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ocultar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скрыть"
+          }
+        }
+      }
+    },
     "game_btn_hint": {
       "extractionState": "manual",
       "localizations": {
@@ -871,6 +917,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Пас"
+          }
+        }
+      }
+    },
+    "game_btn_save_score": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранить"
           }
         }
       }
@@ -1423,6 +1492,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Вист!"
+          }
+        }
+      }
+    },
+    "game_score_saved": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardado"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранено"
           }
         }
       }
@@ -2485,6 +2577,29 @@
         }
       }
     },
+    "mp_clear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Убрать"
+          }
+        }
+      }
+    },
     "mp_connecting": {
       "extractionState": "manual",
       "localizations": {
@@ -2807,6 +2922,29 @@
         }
       }
     },
+    "mp_load_scores": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load saved scores"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargar puntuación guardada"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загрузить пулю"
+          }
+        }
+      }
+    },
     "mp_menu": {
       "extractionState": "manual",
       "localizations": {
@@ -2872,6 +3010,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Открытых игр нет. Создайте свою!"
+          }
+        }
+      }
+    },
+    "mp_no_saved_scores": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No saved score sheets. Start one in the score calculator or save a score during a game."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay hojas guardadas. Empieza una en la calculadora o guarda la puntuación durante una partida."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранённых пуль нет. Начните пулю в калькуляторе или запишите счёт во время игры."
           }
         }
       }
@@ -3037,6 +3198,52 @@
         }
       }
     },
+    "mp_save_finish": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminar…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить…"
+          }
+        }
+      }
+    },
+    "mp_scores_loaded_fmt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resuming scores from %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continuar puntuación del %1$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Продолжение пули от %1$@"
+          }
+        }
+      }
+    },
     "mp_seats": {
       "extractionState": "manual",
       "localizations": {
@@ -3129,6 +3336,29 @@
         }
       }
     },
+    "mp_waiting_for": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for %@…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esperando a %@…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ждём: %@…"
+          }
+        }
+      }
+    },
     "mp_waiting_host": {
       "extractionState": "manual",
       "localizations": {
@@ -3171,6 +3401,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "(вы)"
+          }
+        }
+      }
+    },
+    "mp_you_deal": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You deal this hand. %1$@ to act"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repartes esta mano. Turno de %1$@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вы сдаёте. Ход: %1$@"
           }
         }
       }

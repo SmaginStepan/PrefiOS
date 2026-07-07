@@ -31,9 +31,7 @@ struct MultiplayerView: View {
     var body: some View {
         Group {
             if let room = vm.currentRoom {
-                // live game (3-player only until the 4p engine mode lands;
-                // started 4-seat rooms keep the RoomView with its stub note)
-                if vm.started && room.maxSeats == 3 {
+                if vm.started {
                     if vm.isHost {
                         MpHostView(lobbyVm: vm, room: room)
                     } else {
@@ -63,6 +61,7 @@ private struct MpHostView: View {
     let room: RoomInfo
 
     @State private var config: HostedConfig?
+    @State private var prevConnected: [Bool] = []
 
     var body: some View {
         Group {
@@ -74,13 +73,15 @@ private struct MpHostView: View {
         }
         .onAppear {
             if config == nil {
-                let names = (0..<3).map { i in room.seats.indices.contains(i) ? (room.seats[i]?.name ?? "?") : "?" }
-                let kinds: [SeatKind] = (0..<3).map { i in
+                let n = room.maxSeats
+                let names = (0..<n).map { i in room.seats.indices.contains(i) ? (room.seats[i]?.name ?? "?") : "?" }
+                let kinds: [SeatKind] = (0..<n).map { i in
                     let seat = room.seats.indices.contains(i) ? room.seats[i] : nil
                     if i == 0 { return .local }
                     if seat?.kind == "bot" { return .bot }
                     return .remote
                 }
+                let roomRules = lobbyVm.parseRules(room.rules)
                 let c = HostedConfig(
                     names: names,
                     seatKinds: kinds,
@@ -90,7 +91,11 @@ private struct MpHostView: View {
                                 lobbyVm.sendGameToSeat(seat, data)
                             }
                         }
-                    }
+                    },
+                    initialCalc: lobbyVm.loadedCalc,
+                    rules: roomRules?.gameRules,
+                    limit: roomRules?.limit,
+                    onFinished: { lobbyVm.leave() }
                 )
                 lobbyVm.onPlayerAct = { seat, el in
                     if let msg = try? el.decode(GameMsg.self), case .act(let act) = msg {
@@ -100,7 +105,15 @@ private struct MpHostView: View {
                     }
                 }
                 config = c
+                prevConnected = room.seats.map { $0?.connected == true }
             }
+        }
+        // fire when a guest seat comes back online, so the host resends state
+        .onChange(of: room.seats.map { $0?.connected == true }) { now in
+            if zip(prevConnected, now).contains(where: { !$0.0 && $0.1 }) {
+                config?.onReconnect?()
+            }
+            prevConnected = now
         }
     }
 }
@@ -340,6 +353,48 @@ private struct RoomView: View {
     let room: RoomInfo
     let onBack: () -> Void
 
+    @State private var showPicker = false
+
+    private static let loadedDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .short
+        f.timeStyle = .short
+        return f
+    }()
+
+    /// Resume from a saved pulka with the same number of players.
+    @ViewBuilder
+    private var loadScoresSection: some View {
+        if let loaded = vm.loadedCalc {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(LF("mp_scores_loaded_fmt", Self.loadedDateFormatter.string(
+                        from: Date(timeIntervalSince1970: Double(loaded.created) / 1000.0))))
+                        .font(.system(size: 14))
+                        .foregroundColor(Theme.accentGold)
+                    Text(loaded.scores.map { "\($0.name) \($0.pulya)/\($0.gora)" }.joined(separator: ", "))
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                Spacer()
+                Button {
+                    vm.loadedCalc = nil
+                } label: {
+                    Text(L("mp_clear")).font(.system(size: 13))
+                }
+            }
+            .padding(.top, 8)
+        } else {
+            Button {
+                showPicker = true
+            } label: {
+                Text(L("mp_load_scores")).frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .padding(.top, 8)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(room.name)
@@ -368,12 +423,10 @@ private struct RoomView: View {
                 .padding(.vertical, 6)
             }
 
-            if vm.started {
-                Text(L("mp_started_stub"))
-                    .font(.system(size: 16))
-                    .foregroundColor(Theme.accentGold)
-                    .padding(.vertical, 24)
-            } else if !vm.isHost {
+            if !vm.started && vm.isHost {
+                loadScoresSection
+            }
+            if !vm.started && !vm.isHost {
                 Text(L("mp_waiting_host"))
                     .foregroundColor(.white.opacity(0.6))
                     .padding(.vertical, 24)
@@ -418,6 +471,14 @@ private struct RoomView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(24)
+        .sheet(isPresented: $showPicker) {
+            LoadScoresSheet(playersCount: room.maxSeats) { calc in
+                vm.loadedCalc = calc
+                showPicker = false
+            } onDismiss: {
+                showPicker = false
+            }
+        }
     }
 
     private func seatLabel(_ seat: SeatInfo?, index: Int) -> String {
@@ -433,5 +494,67 @@ private struct RoomView: View {
             res += " · " + L("mp_offline")
         }
         return res
+    }
+}
+
+
+/// Pick a saved pulka (same files the score calculator writes).
+private struct LoadScoresSheet: View {
+    let playersCount: Int
+    let onLoad: (Calculation) -> Void
+    let onDismiss: () -> Void
+
+    @State private var calcs: [Calculation] = []
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .short
+        return f
+    }()
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if calcs.isEmpty {
+                    Text(L("mp_no_saved_scores"))
+                        .foregroundColor(.secondary)
+                        .padding(24)
+                } else {
+                    List(Array(calcs.enumerated()), id: \.offset) { _, calc in
+                        Button {
+                            onLoad(calc)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(LF("load_from", Self.dateFormatter.string(
+                                    from: Date(timeIntervalSince1970: Double(calc.created) / 1000.0))))
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.primary)
+                                Text(calc.scores.map { "\($0.name) \($0.pulya)/\($0.gora)" }.joined(separator: ", ")
+                                    + "  ·  \(calc.limit)")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(L("mp_load_scores"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L("close")) { onDismiss() }
+                }
+            }
+        }
+        .onAppear {
+            let list = CalcList()
+            list.load()
+            calcs = list.calcs
+                .filter { $0.playersCount == playersCount }
+                .compactMap { Calculation.load(created: $0.created, playersCount: $0.playersCount, limit: $0.limit) }
+                .filter { !$0.isFinished }
+        }
+        .presentationDetents([.medium, .large])
     }
 }

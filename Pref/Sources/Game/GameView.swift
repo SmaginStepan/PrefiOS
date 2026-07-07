@@ -10,8 +10,28 @@ struct TableStrings {
     var result = ""
 }
 
-/// Port of DrawField's text section.
-func buildTableStrings(_ info: TableInfo) -> TableStrings {
+/// Port of DrawField's text section. Shared with the multiplayer guest screen.
+func buildTableStrings(_ info: TableInfo, mp: Bool = false) -> TableStrings {
+    var base = buildTableStringsInner(info)
+    // The sitting 4-player dealer only watches this deal; during confirm
+    // phases the base hint already says "tap to continue".
+    if mp && info.watching && info.phase != .Ended {
+        let confirmPhase = info.phase == .EndTurn ||
+            info.phase == .EndPlay || info.phase == .PrikupOpened
+        if !confirmPhase {
+            base.hint = LF("mp_you_deal", info.names[info.controller])
+        }
+        return base
+    }
+    // In multiplayer, action hints belong only to the player who controls the
+    // turn; everyone else sees whose move the table is waiting for.
+    if mp && info.controller != 0 && info.phase != .Ended {
+        base.hint = LF("mp_waiting_for", info.names[info.controller])
+    }
+    return base
+}
+
+private func buildTableStringsInner(_ info: TableInfo) -> TableStrings {
     var s = TableStrings()
     s.p0 = GameTexts.playerInfo(info, 0)
     s.p1 = GameTexts.playerInfo(info, 1)
@@ -76,18 +96,78 @@ func buildTableStrings(_ info: TableInfo) -> TableStrings {
     return s
 }
 
+/// 4-player games: the dealer sits this deal out, shown top center.
+struct SitOutBadge: View {
+    let name: String
+    let kx: Double
+    let ky: Double
+
+    var body: some View {
+        Text("\(name) (" + L("dealer_badge") + ")")
+            .font(.system(size: 11))
+            .foregroundColor(.white.opacity(0.85))
+            .lineLimit(1)
+            .frame(width: 200 * kx, alignment: .center)
+            .offset(x: 140 * kx, y: 2 * ky)
+    }
+}
+
+/// Small badge marking the dealing player, anchored to their table position.
+struct DealerBadge: View {
+    let dealer: Int
+    let kx: Double
+    let ky: Double
+
+    var body: some View {
+        let (x, y, w, align): (Double, Double, Double, Alignment) = {
+            switch dealer {
+            case 0: return (312.0, 677.0, 150.0, .trailing) // right, under own name
+            case 1: return (20.0, 23.0, 150.0, .leading)
+            case 2: return (312.0, 23.0, 150.0, .trailing)
+            default: return (165.0, 23.0, 150.0, .center)
+            }
+        }()
+        Text("(" + L("dealer_badge") + ")")
+            .font(.system(size: 10))
+            .foregroundColor(.white.opacity(0.85))
+            .lineLimit(1)
+            .frame(width: w * kx, alignment: align)
+            .offset(x: x * kx, y: y * ky)
+    }
+}
+
 /// Everything the table needs to run as a multiplayer host.
 final class HostedConfig {
     let names: [String]
     let seatKinds: [SeatKind]
     let sendToSeat: (Int, GameMsg.State) -> Void
+    /// resume from a saved pulka (already carries rules, limit and dealer)
+    let initialCalc: Calculation?
+    let rules: GameRules?
+    let limit: Int?
+    /// invoked after the host saves-and-finishes the match
+    let onFinished: () -> Void
     /// Set by GameView on appear; the lobby feeds decoded remote acts here.
     var deliverAct: ((Int, GameMsg.Act) -> Void)?
+    /// Set by GameView on appear; the lobby signals guest reconnects here.
+    var onReconnect: (() -> Void)?
 
-    init(names: [String], seatKinds: [SeatKind], sendToSeat: @escaping (Int, GameMsg.State) -> Void) {
+    init(
+        names: [String],
+        seatKinds: [SeatKind],
+        sendToSeat: @escaping (Int, GameMsg.State) -> Void,
+        initialCalc: Calculation? = nil,
+        rules: GameRules? = nil,
+        limit: Int? = nil,
+        onFinished: @escaping () -> Void = {}
+    ) {
         self.names = names
         self.seatKinds = seatKinds
         self.sendToSeat = sendToSeat
+        self.initialCalc = initialCalc
+        self.rules = rules
+        self.limit = limit
+        self.onFinished = onFinished
     }
 }
 
@@ -120,7 +200,7 @@ struct GameView: View {
                     .onTapGesture { vm.onCanvasTap() }
 
                 let info = vm.info
-                let strings = buildTableStrings(info)
+                let strings = buildTableStrings(info, mp: vm.hosted)
                 let hintText = vm.transientHint ?? (vm.thinking ? L("game_thinking") : strings.hint)
 
                 // Cards on the table
@@ -177,7 +257,14 @@ struct GameView: View {
                     .foregroundColor(.white)
                     .font(.system(size: 13))
                     .frame(width: 285 * kx, alignment: .trailing)
-                    .offset(x: 177 * kx, y: 684 * ky)
+                    .offset(x: 177 * kx, y: 694 * ky)
+
+                // Dealer marker; in 4-player games the dealer sits out (top center)
+                if let sitOut = info.sitOutName {
+                    SitOutBadge(name: sitOut, kx: kx, ky: ky)
+                } else if !info.names[info.dealer].isEmpty {
+                    DealerBadge(dealer: info.dealer, kx: kx, ky: ky)
+                }
 
                 // Hint text (bottom-left "advice bubble" area)
                 if !hintText.isEmpty {
@@ -210,22 +297,39 @@ struct GameView: View {
                         .offset(x: 224 * kx, y: 470 * ky)
                 }
 
-                // Say bubbles (bid announcements)
+                // Say bubbles: the bid appears at the bidder's side, then grows
+                // while flying to the center of the table
                 if let say = vm.say {
-                    SayBubble(say: say)
-                        .offset(x: (say.player == 2 ? 260.0 : 30.0) * kx, y: 88 * ky)
+                    let t = vm.animProgress
+                    let move = 1 - (1 - t) * (1 - t) // ease-out for the flight
+                    let (sx, sy): (Double, Double) = {
+                        switch say.player {
+                        case 1: return (80.0, 95.0)    // left player
+                        case 2: return (400.0, 95.0)   // right player
+                        default: return (240.0, 600.0) // local player (bottom)
+                        }
+                    }()
+                    let cx = sx + (240.0 - sx) * move
+                    let cy = sy + (300.0 - sy) * move
+                    Text(GameTexts.sayText(say))
+                        .foregroundColor(Theme.accentYellow)
+                        .fontWeight(.bold)
+                        .font(.system(size: 15 + 19 * t))
+                        .lineLimit(1)
+                        .frame(width: 300 * kx, alignment: .center)
+                        .offset(x: (cx - 150.0) * kx, y: cy * ky)
                 }
 
                 // Bid menu
                 if !vm.busy && !vm.menuBids.isEmpty
                     && (info.phase == .Negotiations || info.phase == .GameChoose) {
                     BidMenu(vm: vm)
-                        .frame(width: 203 * kx, height: 300 * ky)
-                        .offset(x: 139 * kx, y: 23 * ky)
+                        .frame(width: 203 * kx, height: 286 * ky)
+                        .offset(x: 139 * kx, y: 37 * ky)
                 }
 
-                // Choice buttons
-                if !vm.busy {
+                // Choice buttons (in hosted games: only on turns the local player controls)
+                if !vm.busy && vm.localTurnAllowed {
                     choiceButtons(info: info, kx: kx, ky: ky)
                 }
 
@@ -237,7 +341,7 @@ struct GameView: View {
                             .foregroundColor(.white)
                     }
                     .buttonStyle(.bordered)
-                    .offset(x: 192 * kx, y: 0)
+                    .offset(x: 192 * kx, y: 30 * ky)
                 }
                 if !vm.busy && info.showPrikupBtn2 {
                     Button { vm.showHandWithPrikup(2) } label: {
@@ -246,17 +350,28 @@ struct GameView: View {
                             .foregroundColor(.white)
                     }
                     .buttonStyle(.bordered)
-                    .offset(x: 192 * kx, y: 0)
+                    .offset(x: 192 * kx, y: 30 * ky)
+                }
+                if !vm.busy && info.showPrikupHideBtn {
+                    Button { vm.hideHandWithPrikup() } label: {
+                        Text(L("game_btn_hide_prikup"))
+                            .font(.system(size: 11))
+                            .foregroundColor(.white)
+                    }
+                    .buttonStyle(.bordered)
+                    .offset(x: 192 * kx, y: 30 * ky)
                 }
 
                 // Bottom-left action buttons
                 VStack {
                     Spacer()
                     HStack(spacing: 6) {
-                        Button { vm.requestAdvice() } label: {
-                            Text(L("game_btn_hint")).font(.system(size: 12)).foregroundColor(.white)
+                        if !vm.hosted {
+                            Button { vm.requestAdvice() } label: {
+                                Text(L("game_btn_hint")).font(.system(size: 12)).foregroundColor(.white)
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
                         if info.showTricksBtn {
                             Button { vm.openTricks() } label: {
                                 Text(L("game_btn_tricks")).font(.system(size: 12)).foregroundColor(.white)
@@ -270,9 +385,13 @@ struct GameView: View {
 
                 // Multiplayer: score standing between deals / at game end
                 if let snap = vm.scoresOverlay {
-                    ScoreOverlay(snap: snap, onTap: { vm.onCanvasTap() })
-                        .frame(width: 400 * kx)
-                        .offset(x: 40 * kx, y: 150 * ky)
+                    ScoreOverlay(
+                        snap: snap,
+                        onSave: { vm.saveScoreSheet() },
+                        onFinish: { vm.saveAndFinish() },
+                        onTap: { vm.onCanvasTap() }
+                    )
+                    .frame(width: tableW, height: tableH)
                 }
 
                 // Past tricks popup
@@ -294,7 +413,18 @@ struct GameView: View {
                 config.deliverAct = { [weak vm] seat, act in
                     vm?.onRemoteAct(seat, act)
                 }
-                vm.startHosted(names: config.names, seatKinds: config.seatKinds, sendToSeat: config.sendToSeat)
+                config.onReconnect = { [weak vm] in
+                    vm?.onGuestReconnected()
+                }
+                vm.onMatchFinished = config.onFinished
+                vm.startHosted(
+                    names: config.names,
+                    seatKinds: config.seatKinds,
+                    sendToSeat: config.sendToSeat,
+                    initialCalc: config.initialCalc,
+                    rules: config.rules,
+                    limit: config.limit
+                )
             } else {
                 vm.start(app: app, ai1Name: L("ai_name_1"), ai2Name: L("ai_name_2"))
             }
@@ -331,36 +461,19 @@ struct GameView: View {
         }()
         if let label = btn1Label {
             Button { vm.onButton1() } label: {
-                Text(label).frame(width: 227 * kx)
+                Text(label).lineLimit(1).frame(width: 176 * kx)
             }
             .buttonStyle(.borderedProminent)
-            .offset(x: 127 * kx, y: 330 * ky)
+            .offset(x: 152 * kx, y: 330 * ky)
         }
         if let label = btn2Label {
             Button { vm.onButton2() } label: {
-                Text(label).frame(width: 227 * kx)
+                Text(label).lineLimit(1).frame(width: 176 * kx)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!btn2Enabled)
-            .offset(x: 127 * kx, y: 385 * ky)
+            .offset(x: 152 * kx, y: 385 * ky)
         }
-    }
-}
-
-private struct SayBubble: View {
-    let say: SayEvent
-    @State private var scale = 1.0
-
-    var body: some View {
-        Text(GameTexts.sayText(say))
-            .foregroundColor(Theme.accentYellow)
-            .fontWeight(.bold)
-            .font(.system(size: 14 * scale))
-            .onAppear {
-                withAnimation(.easeOut(duration: 0.9)) {
-                    scale = 2.2
-                }
-            }
     }
 }
 
@@ -391,8 +504,8 @@ private struct BidMenu: View {
                 }
             }
         }
-        .background(Color(white: 0.83).opacity(0.17))
-        .border(Color.white, width: 1)
+        .background(Color(red: 0x12 / 255.0, green: 0x3B / 255.0, blue: 0x16 / 255.0).opacity(0.4))
+        .border(Color(red: 0x2E / 255.0, green: 0x7D / 255.0, blue: 0x32 / 255.0).opacity(0.4), width: 1)
     }
 }
 
@@ -414,7 +527,9 @@ private struct TricksPopup: View {
             }
             ScrollView {
                 VStack(spacing: 4) {
-                    ForEach(Array(vm.tricks.enumerated()), id: \.offset) { _, take in
+                    ForEach(Array(vm.tricks.enumerated()), id: \.offset) { idx, take in
+                        // only the last trick may be reviewed until the deal ends
+                        let faceDown = vm.hidePastTricks && idx < vm.tricks.count - 1
                         HStack {
                             Text(vm.tricksNames[take.firstMovePerformer] ?? "")
                                 .foregroundColor(.white)
@@ -422,14 +537,14 @@ private struct TricksPopup: View {
                                 .frame(maxWidth: .infinity)
                             HStack(spacing: 0) {
                                 if let prikup = take.prikupMove {
-                                    Image(uiImage: images.get(prikup))
+                                    Image(uiImage: images.get(faceDown ? nil : prikup))
                                         .resizable().frame(width: 34, height: 47)
                                 }
-                                Image(uiImage: images.get(take.nextMove))
+                                Image(uiImage: images.get(faceDown ? nil : take.nextMove))
                                     .resizable().frame(width: 34, height: 47)
-                                Image(uiImage: images.get(take.prevMove))
+                                Image(uiImage: images.get(faceDown ? nil : take.prevMove))
                                     .resizable().frame(width: 34, height: 47)
-                                Image(uiImage: images.get(take.myMove))
+                                Image(uiImage: images.get(faceDown ? nil : take.myMove))
                                     .resizable().frame(width: 34, height: 47)
                             }
                             .frame(maxWidth: .infinity)

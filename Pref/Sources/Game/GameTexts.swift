@@ -24,10 +24,11 @@ enum GameTexts {
         return "\(bid.contract) \(trumpName(bid.trump))"
     }
 
-    /// Port of GameMain.PlayerInfo.
+    /// Port of GameMain.PlayerInfo; ">" marks the player whose turn it is.
     static func playerInfo(_ info: TableInfo, _ player: Int) -> String {
         var res = ""
-        if player == info.dealer {
+        if player == info.playerInTurn &&
+            info.phase != .NotStarted && info.phase != .Ended {
             res += ">"
         }
         res += info.names[player]

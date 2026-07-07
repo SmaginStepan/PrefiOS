@@ -7,6 +7,9 @@ final class GuestGameViewModel: ObservableObject {
     @Published var selectedBid: Game.Bid?
     @Published var discardSel: [Card] = []
 
+    // one pulka file per guest session, overwritten on every save
+    private let calcCreated = Int64(Date().timeIntervalSince1970 * 1000)
+
     func onState(_ s: GameMsg.State) {
         let prevKind = state?.ask?.kind
         state = s
@@ -16,6 +19,24 @@ final class GuestGameViewModel: ObservableObject {
         if s.ask?.kind != "discard" {
             discardSel.removeAll()
         }
+    }
+
+    /// Save the host's score snapshot as a regular pulka file (guest view: self = player 0).
+    func saveScoreSheet(_ snap: ScoreSnap) -> Bool {
+        let n = snap.names.count
+        let c = Calculation(playersCount: n, limit: snap.limit)
+        c.created = calcCreated
+        c.dealer = snap.dealer
+        for i in 0..<n {
+            c.scores[i].name = snap.names[i]
+            c.scores[i].pulya = snap.pulya[i]
+            c.scores[i].gora = snap.gora[i]
+            for j in 0..<n where i != j {
+                c.scores[i].visty[j] = snap.visty.indices.contains(i) ? snap.visty[i][j] : 0
+            }
+        }
+        c.save()
+        return true
     }
 }
 
@@ -78,7 +99,7 @@ struct MpGuestView: View {
                         }
                     }
 
-                let strings = buildTableStrings(st.info)
+                let strings = buildTableStrings(st.info, mp: true)
                 let hintText = st.badMove ? L("mp_bad_move") : (st.ended ? L("mp_game_over") : strings.hint)
 
                 ForEach(st.field) { pc in
@@ -89,11 +110,16 @@ struct MpGuestView: View {
                         .offset(x: pc.x * kx, y: pc.y * ky - (selected ? 14 : 0))
                         .onTapGesture {
                             guard let card = pc.card else { return }
-                            if pc.hand != 0 || pc.isInPlay || pc.isPrikup { return }
+                            if pc.isInPlay || pc.isPrikup { return }
                             switch ask?.kind {
+                            // own cards, or the passer's when whisting an open
+                            // game (the host lists them in ask.allowed)
                             case "play":
-                                act(GameMsg.Act(play: card))
+                                if pc.hand == 0 || ask?.allowed?.contains(where: { $0.id == card.id }) == true {
+                                    act(GameMsg.Act(play: card))
+                                }
                             case "discard":
+                                if pc.hand != 0 { return }
                                 if let idx = vm.discardSel.firstIndex(where: { $0.id == card.id }) {
                                     vm.discardSel.remove(at: idx)
                                 } else if vm.discardSel.count < 2 {
@@ -120,7 +146,13 @@ struct MpGuestView: View {
                 Text(strings.gameInfo)
                     .foregroundColor(.white).font(.system(size: 13))
                     .frame(width: 285 * kx, alignment: .trailing)
-                    .offset(x: 177 * kx, y: 684 * ky)
+                    .offset(x: 177 * kx, y: 694 * ky)
+
+                if let sitOut = st.info.sitOutName {
+                    SitOutBadge(name: sitOut, kx: kx, ky: ky)
+                } else if !st.info.names[st.info.dealer].isEmpty {
+                    DealerBadge(dealer: st.info.dealer, kx: kx, ky: ky)
+                }
 
                 if !hintText.isEmpty {
                     Text(hintText)
@@ -132,13 +164,16 @@ struct MpGuestView: View {
                 }
 
                 if let snap = st.scores {
-                    ScoreOverlay(snap: snap) {
-                        if ask?.kind == "confirm" {
-                            act(GameMsg.Act(confirm: true))
+                    ScoreOverlay(
+                        snap: snap,
+                        onSave: { vm.saveScoreSheet(snap) },
+                        onTap: {
+                            if ask?.kind == "confirm" {
+                                act(GameMsg.Act(confirm: true))
+                            }
                         }
-                    }
-                    .frame(width: 400 * kx)
-                    .offset(x: 40 * kx, y: 150 * ky)
+                    )
+                    .frame(width: tableW, height: tableH)
                 }
 
                 if !strings.result.isEmpty {
@@ -172,10 +207,10 @@ struct MpGuestView: View {
                             }
                         }
                     }
-                    .frame(width: 203 * kx, height: 300 * ky)
-                    .background(Color(white: 0.83).opacity(0.17))
-                    .border(Color.white, width: 1)
-                    .offset(x: 139 * kx, y: 23 * ky)
+                    .frame(width: 203 * kx, height: 286 * ky)
+                    .background(Color(red: 0x12 / 255.0, green: 0x3B / 255.0, blue: 0x16 / 255.0).opacity(0.4))
+                    .border(Color(red: 0x2E / 255.0, green: 0x7D / 255.0, blue: 0x32 / 255.0).opacity(0.4), width: 1)
+                    .offset(x: 139 * kx, y: 37 * ky)
                 }
 
                 // ask buttons
@@ -262,18 +297,18 @@ struct MpGuestView: View {
         }()
         if let (label, action) = btn1 {
             Button(action: action) {
-                Text(label).frame(width: 227 * kx)
+                Text(label).lineLimit(1).frame(width: 176 * kx)
             }
             .buttonStyle(.borderedProminent)
-            .offset(x: 127 * kx, y: 330 * ky)
+            .offset(x: 152 * kx, y: 330 * ky)
         }
         if let (label, enabled, action) = btn2 {
             Button(action: action) {
-                Text(label).frame(width: 227 * kx)
+                Text(label).lineLimit(1).frame(width: 176 * kx)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!enabled)
-            .offset(x: 127 * kx, y: 385 * ky)
+            .offset(x: 152 * kx, y: 385 * ky)
         }
     }
 }
