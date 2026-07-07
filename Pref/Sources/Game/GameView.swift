@@ -327,7 +327,7 @@ struct GameView: View {
                     && (info.phase == .Negotiations || info.phase == .GameChoose) {
                     BidMenu(vm: vm)
                         .frame(width: 180 * kx, height: 240 * ky)
-                        .offset(x: 150 * kx, y: 37 * ky)
+                        .offset(x: 150 * kx, y: 70 * ky)
                 }
 
                 // Choice buttons (in hosted games: only on turns the local player controls)
@@ -463,18 +463,18 @@ struct GameView: View {
         }()
         if let label = btn1Label {
             Button { vm.onButton1() } label: {
-                Text(label).lineLimit(1).frame(width: 150 * kx)
+                Text(label).lineLimit(1).frame(width: 130 * kx)
             }
             .buttonStyle(.borderedProminent)
-            .offset(x: 165 * kx, y: 330 * ky)
+            .offset(x: 140 * kx, y: 330 * ky)
         }
         if let label = btn2Label {
             Button { vm.onButton2() } label: {
-                Text(label).lineLimit(1).frame(width: 150 * kx)
+                Text(label).lineLimit(1).frame(width: 130 * kx)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!btn2Enabled)
-            .offset(x: 165 * kx, y: 385 * ky)
+            .offset(x: 140 * kx, y: 385 * ky)
         }
     }
 }

@@ -214,7 +214,7 @@ struct MpGuestView: View {
                     .frame(width: 180 * kx, height: 240 * ky)
                     .background(Color(red: 0x12 / 255.0, green: 0x3B / 255.0, blue: 0x16 / 255.0).opacity(0.4))
                     .border(Color(red: 0x2E / 255.0, green: 0x7D / 255.0, blue: 0x32 / 255.0).opacity(0.4), width: 1)
-                    .offset(x: 150 * kx, y: 37 * ky)
+                    .offset(x: 150 * kx, y: 70 * ky)
                 }
 
                 // ask buttons
@@ -301,18 +301,18 @@ struct MpGuestView: View {
         }()
         if let (label, action) = btn1 {
             Button(action: action) {
-                Text(label).lineLimit(1).frame(width: 150 * kx)
+                Text(label).lineLimit(1).frame(width: 130 * kx)
             }
             .buttonStyle(.borderedProminent)
-            .offset(x: 165 * kx, y: 330 * ky)
+            .offset(x: 140 * kx, y: 330 * ky)
         }
         if let (label, enabled, action) = btn2 {
             Button(action: action) {
-                Text(label).lineLimit(1).frame(width: 150 * kx)
+                Text(label).lineLimit(1).frame(width: 130 * kx)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!enabled)
-            .offset(x: 165 * kx, y: 385 * ky)
+            .offset(x: 140 * kx, y: 385 * ky)
         }
     }
 }
