@@ -168,6 +168,14 @@ struct MpGuestView: View {
                         .offset(x: 16 * kx, y: 545 * ky)
                 }
 
+                // Confirm asks: tap anywhere to continue
+                if ask?.kind == "confirm" {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .frame(width: tableW, height: tableH)
+                        .onTapGesture { act(GameMsg.Act(confirm: true)) }
+                }
+
                 if let snap = st.scores {
                     ScoreOverlay(
                         snap: snap,

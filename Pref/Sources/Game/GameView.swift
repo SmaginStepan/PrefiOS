@@ -302,6 +302,18 @@ struct GameView: View {
                         .offset(x: 224 * kx, y: 470 * ky)
                 }
 
+                // Confirm phases: tap ANYWHERE to continue, not just the felt
+                // (cards and labels otherwise swallow the tap). Sits above the
+                // card/text layers, below buttons and popups.
+                if !vm.busy && !vm.showTricks &&
+                    (info.phase == .PrikupOpened || info.phase == .EndTurn
+                        || info.phase == .EndPlay || (vm.hosted && info.phase == .ScoreView)) {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .frame(width: tableW, height: tableH)
+                        .onTapGesture { vm.onCanvasTap() }
+                }
+
                 // Say bubbles: the bid appears at the bidder's side, then grows
                 // while flying to the center of the table
                 if let say = vm.say {
