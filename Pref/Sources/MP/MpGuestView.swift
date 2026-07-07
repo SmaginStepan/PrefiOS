@@ -87,8 +87,11 @@ struct MpGuestView: View {
             let kx = tableW / TableLayout.W
             let ky = tableH / TableLayout.H
             // Slightly smaller than the 70-unit layout slot (58-unit hand step),
-            // so a thin gap separates the cards in every hand.
-            let cardW = 56.0 * kx
+            // so a thin gap separates the cards in every hand. Sized by the
+            // smaller axis scale: when the canvas is stretched non-uniformly
+            // (iPad portrait), cards keep their aspect and still fit the
+            // 79-unit row step instead of overlapping vertically.
+            let cardW = 56.0 * min(kx, ky)
             let cardH = cardW * 96.0 / 70.0
 
             ZStack(alignment: .topLeading) {
@@ -301,18 +304,18 @@ struct MpGuestView: View {
         }()
         if let (label, action) = btn1 {
             Button(action: action) {
-                Text(label).lineLimit(1).frame(width: 130 * kx)
+                Text(label).lineLimit(1).minimumScaleFactor(0.6).frame(width: 130 * kx)
             }
             .buttonStyle(.borderedProminent)
-            .offset(x: 140 * kx, y: 330 * ky)
+            .offset(x: 175 * kx, y: 330 * ky)
         }
         if let (label, enabled, action) = btn2 {
             Button(action: action) {
-                Text(label).lineLimit(1).frame(width: 130 * kx)
+                Text(label).lineLimit(1).minimumScaleFactor(0.6).frame(width: 130 * kx)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!enabled)
-            .offset(x: 140 * kx, y: 385 * ky)
+            .offset(x: 175 * kx, y: 385 * ky)
         }
     }
 }
