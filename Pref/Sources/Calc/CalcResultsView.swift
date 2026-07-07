@@ -6,6 +6,15 @@ struct CalcResultsView: View {
     let calc: Calculation
     let onClose: () -> Void
 
+    init(calc: Calculation, onClose: @escaping () -> Void) {
+        self.calc = calc
+        self.onClose = onClose
+        // Settle BEFORE the first render reads score values (the Android port
+        // does this in remember{}); in onAppear it ran a render too late and
+        // the first visit showed zeros.
+        calc.calc()
+    }
+
     // The original C# pattern "### ### ##0.#" used literal spaces, which ICU
     // rejects; use grouping with a space separator instead.
     private static let formatter: NumberFormatter = {
@@ -45,8 +54,5 @@ struct CalcResultsView: View {
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.background)
-        .onAppear {
-            calc.calc()
-        }
     }
 }
