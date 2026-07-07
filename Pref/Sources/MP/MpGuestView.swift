@@ -307,7 +307,8 @@ struct MpGuestView: View {
                 Text(label).lineLimit(1).minimumScaleFactor(0.6).frame(width: 130 * kx)
             }
             .buttonStyle(.borderedProminent)
-            .offset(x: 167 * kx, y: 330 * ky)
+            .frame(width: 180 * kx, alignment: .center)
+            .offset(x: 142 * kx, y: 330 * ky)
         }
         if let (label, enabled, action) = btn2 {
             Button(action: action) {
@@ -315,7 +316,8 @@ struct MpGuestView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(!enabled)
-            .offset(x: 167 * kx, y: 385 * ky)
+            .frame(width: 180 * kx, alignment: .center)
+            .offset(x: 142 * kx, y: 385 * ky)
         }
     }
 }

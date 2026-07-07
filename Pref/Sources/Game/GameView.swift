@@ -469,7 +469,8 @@ struct GameView: View {
                 Text(label).lineLimit(1).minimumScaleFactor(0.6).frame(width: 130 * kx)
             }
             .buttonStyle(.borderedProminent)
-            .offset(x: 167 * kx, y: 330 * ky)
+            .frame(width: 180 * kx, alignment: .center)
+            .offset(x: 142 * kx, y: 330 * ky)
         }
         if let label = btn2Label {
             Button { vm.onButton2() } label: {
@@ -477,7 +478,8 @@ struct GameView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(!btn2Enabled)
-            .offset(x: 167 * kx, y: 385 * ky)
+            .frame(width: 180 * kx, alignment: .center)
+            .offset(x: 142 * kx, y: 385 * ky)
         }
     }
 }
