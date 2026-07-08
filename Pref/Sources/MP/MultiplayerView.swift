@@ -121,7 +121,8 @@ private struct MpHostView: View {
 private struct LobbyView: View {
     @ObservedObject var vm: LobbyViewModel
 
-    @State private var showCreate = false
+    // PREF_AUTOSTART=mpcreate: open the create dialog immediately (screenshots)
+    @State private var showCreate = ProcessInfo.processInfo.environment["PREF_AUTOSTART"] == "mpcreate"
     @State private var joinFor: RoomInfo?
 
     var body: some View {
