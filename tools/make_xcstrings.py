@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Regenerate Pref/Resources/Localizable.xcstrings from the Android app's
-strings.xml files (the localization source of truth), plus iOS-only keys.
+strings.xml files (the localization source of truth), plus keys not (yet)
+present in the Android resources.
 
 Usage: python3 tools/make_xcstrings.py [path-to-PrefAndroid]
 """
@@ -21,7 +22,10 @@ FILES = {
     "es": RES / "values-es/strings.xml",
 }
 
-# Keys that exist only in the iOS app (kept here so regeneration keeps them).
+# Keys not (yet) in the Android strings.xml (kept here so regeneration
+# keeps them). about_f5 describes the CROSS-PLATFORM multiplayer — move it
+# to the Android resources once its About screen lists it too, then drop it
+# from this dict.
 EXTRA = {
     "about_f5": {
         "en": "- Online multiplayer with friends (3 or 4 players)",

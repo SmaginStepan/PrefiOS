@@ -32,8 +32,9 @@ If `xcode-select` points at the CommandLineTools, prefix commands with
 ## Localization pipeline
 
 Android's strings.xml files are the source of truth. Regenerate the String
-Catalog with `python3 tools/make_xcstrings.py [path-to-PrefAndroid]`;
-iOS-only keys live in that script's EXTRA dict so they survive regeneration.
+Catalog with `python3 tools/make_xcstrings.py [path-to-PrefAndroid]`; keys
+not (yet) present in the Android resources live in that script's EXTRA dict
+so they survive regeneration.
 
 ## Porting notes (do not "fix" these)
 
