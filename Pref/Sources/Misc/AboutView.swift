@@ -20,6 +20,21 @@ struct AboutView: View {
                 Text(L("about_f2")).padding(.leading, 16).padding(.top, 6)
                 Text(L("about_f3")).padding(.leading, 16).padding(.top, 6)
                 Text(L("about_f4")).padding(.leading, 16).padding(.top, 6)
+
+                Link(destination: URL(string: "https://preferansmaster.com/privacy")!) {
+                    Text("Privacy Policy: preferansmaster.com/privacy")
+                        .font(.system(size: 15))
+                        .underline()
+                        .foregroundColor(Theme.accentGold)
+                }
+                .padding(.top, 24)
+                Link(destination: URL(string: "https://preferansmaster.com/support")!) {
+                    Text("Support: preferansmaster.com/support")
+                        .font(.system(size: 15))
+                        .underline()
+                        .foregroundColor(Theme.accentGold)
+                }
+                .padding(.top, 8)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(24)
