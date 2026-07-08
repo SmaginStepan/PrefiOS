@@ -29,6 +29,12 @@ xcodebuild -project Pref.xcodeproj -scheme Pref \
 If `xcode-select` points at the CommandLineTools, prefix commands with
 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
 
+## Localization pipeline
+
+Android's strings.xml files are the source of truth. Regenerate the String
+Catalog with `python3 tools/make_xcstrings.py [path-to-PrefAndroid]`;
+iOS-only keys live in that script's EXTRA dict so they survive regeneration.
+
 ## Porting notes (do not "fix" these)
 
 - The engine is a verbatim translation. Several AI quirks are intentional and

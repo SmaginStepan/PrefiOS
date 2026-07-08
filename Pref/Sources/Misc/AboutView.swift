@@ -20,6 +20,7 @@ struct AboutView: View {
                 Text(L("about_f2")).padding(.leading, 16).padding(.top, 6)
                 Text(L("about_f3")).padding(.leading, 16).padding(.top, 6)
                 Text(L("about_f4")).padding(.leading, 16).padding(.top, 6)
+                Text(L("about_f5")).padding(.leading, 16).padding(.top, 6)
 
                 Link(destination: URL(string: "https://preferansmaster.com/privacy")!) {
                     Text("Privacy Policy: preferansmaster.com/privacy")
