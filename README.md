@@ -84,6 +84,9 @@ unilaterally; a protocol change must land on both platforms together.
 - Tests: `ProtocolTests` (Android fixture JSON), `HostGameSessionTests`
   (3 remote seats over JSON, zero hidden-card leaks), `LiveRelayTests`
   (full game against the production relay; run with `PREF_LIVE_TEST=1`).
-- v1 limitations (same as Android): every seat plays its own hand; 4-seat
-  rooms can be created/joined but Start shows a coming-soon note; the host
-  does not push a fresh State on guest rejoin.
+- 4-player rooms play for real: the dealer sits out each deal (spectating
+  at their own pace) while a 4-column pulka runs the match; score sheets can
+  be saved mid-match and resumed later from the room screen.
+- Known limitation (same as Android): a guest who restarts the app can rejoin
+  their reserved seat, but mid-deal state is only refreshed by the host's
+  reconnect rebroadcast.
