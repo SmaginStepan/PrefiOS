@@ -35,8 +35,9 @@ final class HostGameSessionTests: XCTestCase {
     private var sawConcurrentConfirms = false
 
     /// Drives a session of N remote players until it ends; returns (session, leaks).
-    private func driveRemoteMatch(playersCount: Int, limit: Int) throws -> (HostGameSession, Int) {
-        let calc = Calculation(playersCount: playersCount, limit: limit)
+    /// Pass `initialCalc` to resume from a loaded pulka instead of a fresh sheet.
+    private func driveRemoteMatch(playersCount: Int, limit: Int, initialCalc: Calculation? = nil) throws -> (HostGameSession, Int) {
+        let calc = initialCalc ?? Calculation(playersCount: playersCount, limit: limit)
         let names = (0..<playersCount).map { "P\($0)" }
         for i in 0..<playersCount {
             calc.scores[i].name = names[i]
@@ -153,6 +154,45 @@ final class HostGameSessionTests: XCTestCase {
         }
         XCTAssertTrue(sawConcurrentConfirms,
                       "stops must ask several seats to confirm at once (order-independent)")
+    }
+
+    /// A mid-game pulka like the save/resume flow produces.
+    private func midGamePulka(_ players: Int) -> Calculation {
+        let c = Calculation(playersCount: players, limit: 10)
+        for i in 0..<players {
+            c.scores[i].name = "P\(i)"
+        }
+        // a few plausible played deals
+        let r1 = Calculation.GameResult()
+        r1.gameType = .Normal
+        r1.contractor = 0
+        r1.dealer = players - 1
+        r1.contract = 6
+        r1.taken[0] = 6
+        r1.taken[1] = 2
+        r1.taken[2] = 2
+        r1.visters = [1, 2]
+        c.writeGame(r1)
+        let r2 = Calculation.GameResult()
+        r2.gameType = .Raspasy
+        r2.dealer = 0
+        for i in 0..<min(players, 3) {
+            r2.taken[i] = i == 1 ? 4 : 3
+        }
+        c.writeGame(r2)
+        return c
+    }
+
+    func testResumedPulkaMatchesFinish() throws {
+        for players in [3, 4] {
+            let loaded = midGamePulka(players)
+            // the app reorders the loaded pulka onto the room seats
+            let calc = loaded.reordered(Calculation.seatOrder((0..<players).map { "P\($0)" }, loaded))
+            XCTAssertEqual(2, calc.gameLog.count, "resumed pulka keeps its played deals")
+            let (session, leaks) = try driveRemoteMatch(playersCount: players, limit: 10, initialCalc: calc)
+            XCTAssertEqual(0, leaks, "no hidden cards may leak in a resumed match")
+            XCTAssertTrue(session.matchCalc.gameLog.count > 2, "the resumed match played further deals")
+        }
     }
 
     func testFourPlayersWithSittingDealerFinishGamesWithoutLeaks() throws {

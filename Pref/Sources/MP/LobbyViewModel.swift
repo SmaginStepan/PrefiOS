@@ -13,6 +13,10 @@ final class LobbyViewModel: ObservableObject {
     @Published private(set) var mySeat: Int?
     @Published private(set) var started = false
 
+    /// Increments for every freshly started game so the game screens get a
+    /// fresh view model instead of the previous match's one (stale-state bug).
+    @Published private(set) var gameGeneration = 0
+
     /// Transient server error / event code; the UI maps it to a localized text.
     @Published var notice: String?
 
@@ -85,6 +89,11 @@ final class LobbyViewModel: ObservableObject {
                 }
             }
         case .started:
+            // only a real start bumps the generation; the reconnect replay
+            // of "started" must keep the running game's view model
+            if !started {
+                gameGeneration += 1
+            }
             started = true
         case .left:
             currentRoom = nil

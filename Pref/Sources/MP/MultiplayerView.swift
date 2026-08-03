@@ -61,10 +61,16 @@ struct MultiplayerView: View {
             if let room = vm.currentRoom {
                 if vm.started {
                     ZStack(alignment: .top) {
+                        // distinct identity per started game so a new match gets
+                        // fresh view models and a fresh host config (the server
+                        // replays "started" on reconnect — same generation, so
+                        // the running game's state survives that)
                         if vm.isHost {
                             MpHostView(lobbyVm: vm, room: room)
+                                .id("mp-host-\(room.id)-\(vm.gameGeneration)")
                         } else {
                             MpGuestView(lobbyVm: vm)
+                                .id("mp-guest-\(vm.gameGeneration)")
                         }
                         ReconnectBanner(vm: vm)
                     }
@@ -301,7 +307,7 @@ private struct CreateRoomSheet: View {
     @State private var password = ""
     @State private var preset = RulesGameType.Sochy
     @State private var limitText = "10"
-    @State private var autoConfirm = 0
+    @State private var autoConfirm = 10
 
     var body: some View {
         NavigationStack {
