@@ -30,6 +30,10 @@ final class HostGameSessionTests: XCTestCase {
         XCTAssertEqual(20, othersFaceDown, "opponents stay face-down")
     }
 
+    /// Set when at least one stop asked several seats to confirm at once —
+    /// the order-independent confirm system in action.
+    private var sawConcurrentConfirms = false
+
     /// Drives a session of N remote players until it ends; returns (session, leaks).
     private func driveRemoteMatch(playersCount: Int, limit: Int) throws -> (HostGameSession, Int) {
         let calc = Calculation(playersCount: playersCount, limit: limit)
@@ -41,6 +45,7 @@ final class HostGameSessionTests: XCTestCase {
         let players = (0..<playersCount).map { _ in RemotePlayer() }
         var pending: [(Int, GameMsg.State)] = []
         var leaks = 0
+        var confirmAskSeats: [String: Set<Int>] = [:]
 
         var sessionRef: HostGameSession?
         let session = HostGameSession(
@@ -62,6 +67,13 @@ final class HostGameSessionTests: XCTestCase {
                         let hidden = (1...2).contains(pc.hand) || (decoded.info.watching && pc.hand == 0)
                         if hidden && !pc.isInPlay && !pc.isPrikup && pc.card != nil && !anyOpen {
                             leaks += 1
+                        }
+                    }
+                    if decoded.yourTurn && decoded.ask?.kind == "confirm" {
+                        let key = "\(decoded.info.phase)-\(decoded.info.taken)"
+                        confirmAskSeats[key, default: []].insert(seat)
+                        if confirmAskSeats[key]!.count >= 2 {
+                            self.sawConcurrentConfirms = true
                         }
                     }
                     pending.append((seat, decoded))
@@ -139,6 +151,8 @@ final class HostGameSessionTests: XCTestCase {
             let (_, leaks) = try driveRemoteMatch(playersCount: 3, limit: 4)
             XCTAssertEqual(0, leaks, "no hidden cards may leak")
         }
+        XCTAssertTrue(sawConcurrentConfirms,
+                      "stops must ask several seats to confirm at once (order-independent)")
     }
 
     func testFourPlayersWithSittingDealerFinishGamesWithoutLeaks() throws {

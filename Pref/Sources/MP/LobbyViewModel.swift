@@ -40,7 +40,8 @@ final class LobbyViewModel: ObservableObject {
         if startedOnce { return }
         startedOnce = true
         let settings = AppSettings()
-        myName = settings.playerName
+        // blank = never customized; the UI substitutes the localized default
+        myName = settings.isDefaultPlayerName ? "" : settings.playerName
 
         client.onState = { [weak self] state in
             self?.conn = state
@@ -74,7 +75,15 @@ final class LobbyViewModel: ObservableObject {
         case .joined(_, let seat):
             mySeat = seat
         case .roomState(let room):
+            let prev = currentRoom
             currentRoom = room
+            // a newcomer while a pulka is loaded: seat them on their column
+            if loadedCalc != nil && isHost && !started {
+                let prevNames = Set((prev?.seats ?? []).compactMap { $0?.name })
+                if room.seats.contains(where: { $0 != nil && !prevNames.contains($0!.name) }) {
+                    arrangeByPulka()
+                }
+            }
         case .started:
             started = true
         case .left:
@@ -88,14 +97,19 @@ final class LobbyViewModel: ObservableObject {
             started = false
             loadedCalc = nil
             notice = "kicked"
-        case .roomClosed:
+        case .roomClosed(_, let reason):
             currentRoom = nil
             mySeat = nil
             started = false
             loadedCalc = nil
-            notice = "room_closed"
-        case .error(let code, _):
-            notice = code
+            notice = reason == "host_disconnected" ? "host_disconnected" : "room_closed"
+        case .error(let code, let message):
+            // transient throttling must not interrupt play with a dialog
+            if code == "rate_limited" {
+                NSLog("PrefNet: rate limited: %@", message)
+            } else {
+                notice = code
+            }
         case .hostMsg(let data):
             onHostState?(data)
         case .playerMsg(let fromSeat, let data):
@@ -129,7 +143,8 @@ final class LobbyViewModel: ObservableObject {
         maxSeats: Int,
         password: String?,
         preset: RulesGameType,
-        limit: Int
+        limit: Int,
+        autoConfirmSec: Int = 0
     ) {
         ensureName(playerName)
         let rules = GameRules()
@@ -155,7 +170,7 @@ final class LobbyViewModel: ObservableObject {
             rules.scoring = .Normal
             rules.consolationBonus = .Max10
         }
-        guard let payload = try? JSONValue.from(RoomRules(gameRules: rules, limit: limit)) else { return }
+        guard let payload = try? JSONValue.from(RoomRules(gameRules: rules, limit: limit, autoConfirmSec: autoConfirmSec)) else { return }
         let pwd = (password?.isEmpty == false) ? password : nil
         client.send(.createRoom(name: roomName, rules: payload, maxSeats: maxSeats, password: pwd))
     }
@@ -176,6 +191,35 @@ final class LobbyViewModel: ObservableObject {
 
     func addBot() {
         client.send(.addBot(seat: nil))
+    }
+
+    func swapSeats(_ a: Int, _ b: Int) {
+        if a != b && a > 0 && b > 0 {
+            client.send(.swapSeats(a: a, b: b))
+        }
+    }
+
+    /// Move name-matched players onto their saved-pulka columns (visual order).
+    func arrangeByPulka() {
+        guard let calc = loadedCalc, let room = currentRoom else { return }
+        if !isHost || started { return }
+        // simulate on a copy, emit the swap sequence that realizes it
+        var sim = room.seats
+        let n = min(room.maxSeats, calc.playersCount)
+        for col in 1..<n {
+            let want = calc.scores[col].name
+                .trimmingCharacters(in: .whitespaces).lowercased()
+            let cur = sim.indices.contains(col)
+                ? sim[col]?.name.trimmingCharacters(in: .whitespaces).lowercased() : nil
+            if cur == want { continue }
+            let from = (1..<room.maxSeats).first { j in
+                j != col && sim.indices.contains(j)
+                    && sim[j]?.name.trimmingCharacters(in: .whitespaces).lowercased() == want
+            }
+            guard let from = from else { continue }
+            sim.swapAt(col, from)
+            swapSeats(col, from)
+        }
     }
 
     func startGame() {

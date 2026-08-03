@@ -23,16 +23,8 @@ FILES = {
 }
 
 # Keys not (yet) in the Android strings.xml (kept here so regeneration
-# keeps them). about_f5 describes the CROSS-PLATFORM multiplayer — move it
-# to the Android resources once its About screen lists it too, then drop it
-# from this dict.
-EXTRA = {
-    "about_f5": {
-        "en": "- Online multiplayer with friends (3 or 4 players)",
-        "ru": "- Сетевая игра с друзьями (3 или 4 игрока)",
-        "es": "- Juego en línea con amigos (3 o 4 jugadores)",
-    },
-}
+# keeps them). Empty since Android 5edf293 added about_f5 to its resources.
+EXTRA = {}
 
 
 def android_to_ios(s: str) -> str:

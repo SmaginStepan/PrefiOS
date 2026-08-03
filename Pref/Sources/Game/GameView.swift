@@ -13,6 +13,11 @@ struct TableStrings {
 /// Port of DrawField's text section. Shared with the multiplayer guest screen.
 func buildTableStrings(_ info: TableInfo, mp: Bool = false) -> TableStrings {
     var base = buildTableStringsInner(info)
+    // Confirmed the current stop: show who everyone is waiting for.
+    if mp && info.youConfirmed && !info.waitingFor.isEmpty {
+        base.hint = LF("mp_waiting_confirm", info.waitingFor.joined(separator: ", "))
+        return base
+    }
     // The sitting 4-player dealer only watches this deal; during confirm
     // phases the base hint already says "tap to continue".
     if mp && info.watching && info.phase != .Ended {
@@ -147,6 +152,8 @@ final class HostedConfig {
     let limit: Int?
     /// invoked after the host saves-and-finishes the match
     let onFinished: () -> Void
+    /// confirmations auto-continue after this many seconds (0 = off)
+    let autoConfirmSec: Int
     /// Set by GameView on appear; the lobby feeds decoded remote acts here.
     var deliverAct: ((Int, GameMsg.Act) -> Void)?
     /// Set by GameView on appear; the lobby signals guest reconnects here.
@@ -159,7 +166,8 @@ final class HostedConfig {
         initialCalc: Calculation? = nil,
         rules: GameRules? = nil,
         limit: Int? = nil,
-        onFinished: @escaping () -> Void = {}
+        onFinished: @escaping () -> Void = {},
+        autoConfirmSec: Int = 0
     ) {
         self.names = names
         self.seatKinds = seatKinds
@@ -168,6 +176,7 @@ final class HostedConfig {
         self.rules = rules
         self.limit = limit
         self.onFinished = onFinished
+        self.autoConfirmSec = autoConfirmSec
     }
 }
 
@@ -395,9 +404,24 @@ struct GameView: View {
                             }
                             .buttonStyle(.bordered)
                         }
+                        if info.phase != .NotStarted && vm.scoresOverlay == nil {
+                            Button { vm.toggleScorePeek() } label: {
+                                Text(L("game_btn_score")).font(.system(size: 12)).foregroundColor(.white)
+                            }
+                            .buttonStyle(.bordered)
+                        }
                         Spacer()
                     }
                     .padding(6)
+                }
+
+                // In-table pulka peek: current standings, tap to dismiss
+                if let snap = vm.scorePeek, vm.scoresOverlay == nil {
+                    ScoreOverlay(
+                        snap: snap,
+                        onTap: { vm.toggleScorePeek() }
+                    )
+                    .frame(width: tableW, height: tableH)
                 }
 
                 // Multiplayer: score standing between deals / at game end
@@ -440,10 +464,16 @@ struct GameView: View {
                     sendToSeat: config.sendToSeat,
                     initialCalc: config.initialCalc,
                     rules: config.rules,
-                    limit: config.limit
+                    limit: config.limit,
+                    autoConfirmSec: config.autoConfirmSec
                 )
             } else {
-                vm.start(app: app, ai1Name: L("ai_name_1"), ai2Name: L("ai_name_2"))
+                vm.start(
+                    app: app,
+                    ai1Name: L("ai_name_1"),
+                    ai2Name: L("ai_name_2"),
+                    playerName: L("default_player_name")
+                )
             }
         }
     }

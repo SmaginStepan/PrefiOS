@@ -86,6 +86,8 @@ public enum ClientMsg {
     case kick(seat: Int)
     case addBot(seat: Int?)
     case start
+    /// Host rearranges guests before the game starts (seat 0 stays the host).
+    case swapSeats(a: Int, b: Int)
     case send(toSeat: Int?, data: JSONValue)
 
     public struct ReopenSeat: Codable {
@@ -103,7 +105,7 @@ public enum ClientMsg {
 
 extension ClientMsg: Encodable {
     private enum CodingKeys: String, CodingKey {
-        case type, playerId, name, rules, maxSeats, password, roomId, seats, seat, toSeat, data
+        case type, playerId, name, rules, maxSeats, password, roomId, seats, seat, toSeat, data, a, b
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -150,6 +152,10 @@ extension ClientMsg: Encodable {
             try c.encodeIfPresent(seat, forKey: .seat)
         case .start:
             try c.encode("start", forKey: .type)
+        case .swapSeats(let a, let b):
+            try c.encode("swap_seats", forKey: .type)
+            try c.encode(a, forKey: .a)
+            try c.encode(b, forKey: .b)
         case .send(let toSeat, let data):
             try c.encode("send", forKey: .type)
             try c.encodeIfPresent(toSeat, forKey: .toSeat)
@@ -229,19 +235,23 @@ extension ServerMsg: Decodable {
 public struct RoomRules: Codable {
     public var gameRules: GameRules
     public var limit: Int
+    /// confirmations auto-continue after this many seconds (0 = off)
+    public var autoConfirmSec: Int
 
-    public init(gameRules: GameRules = GameRules(), limit: Int = 10) {
+    public init(gameRules: GameRules = GameRules(), limit: Int = 10, autoConfirmSec: Int = 0) {
         self.gameRules = gameRules
         self.limit = limit
+        self.autoConfirmSec = autoConfirmSec
     }
 
     private enum CodingKeys: String, CodingKey {
-        case gameRules, limit
+        case gameRules, limit, autoConfirmSec
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         gameRules = try c.decodeIfPresent(GameRules.self, forKey: .gameRules) ?? GameRules()
         limit = try c.decodeIfPresent(Int.self, forKey: .limit) ?? 10
+        autoConfirmSec = try c.decodeIfPresent(Int.self, forKey: .autoConfirmSec) ?? 0
     }
 }

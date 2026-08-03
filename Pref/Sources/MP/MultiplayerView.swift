@@ -5,6 +5,7 @@ private func noticeText(_ code: String) -> String {
     switch code {
     case "kicked": return L("mp_err_kicked")
     case "room_closed": return L("mp_err_room_closed")
+    case "host_disconnected": return L("mp_err_host_lost")
     case "bad_password": return L("mp_err_bad_password")
     case "room_full": return L("mp_err_room_full")
     case "playing": return L("mp_err_playing")
@@ -23,6 +24,33 @@ private func rulesSummary(_ vm: LobbyViewModel, _ room: RoomInfo) -> String {
     return "\(type) · \(parsed.limit)"
 }
 
+/// Small top banner while any human seat is offline (disconnect grace).
+private struct ReconnectBanner: View {
+    @ObservedObject var vm: LobbyViewModel
+
+    var body: some View {
+        if let room = vm.currentRoom {
+            let offline = room.seats.compactMap { $0 }
+                .filter { $0.kind == "human" && !$0.connected }
+                .map { $0.name }
+            if !offline.isEmpty {
+                VStack {
+                    Text(LF("mp_reconnecting_fmt", offline.joined(separator: ", ")))
+                        .font(.system(size: 12))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color(red: 0.48, green: 0.13, blue: 0.13).opacity(0.67),
+                                    in: RoundedRectangle(cornerRadius: 8))
+                        .padding(.top, 6)
+                    Spacer()
+                }
+                .allowsHitTesting(false)
+            }
+        }
+    }
+}
+
 struct MultiplayerView: View {
     let onBack: () -> Void
 
@@ -32,10 +60,13 @@ struct MultiplayerView: View {
         Group {
             if let room = vm.currentRoom {
                 if vm.started {
-                    if vm.isHost {
-                        MpHostView(lobbyVm: vm, room: room)
-                    } else {
-                        MpGuestView(lobbyVm: vm)
+                    ZStack(alignment: .top) {
+                        if vm.isHost {
+                            MpHostView(lobbyVm: vm, room: room)
+                        } else {
+                            MpGuestView(lobbyVm: vm)
+                        }
+                        ReconnectBanner(vm: vm)
                     }
                 } else {
                     RoomView(vm: vm, room: room, onBack: onBack)
@@ -95,7 +126,8 @@ private struct MpHostView: View {
                     initialCalc: lobbyVm.loadedCalc,
                     rules: roomRules?.gameRules,
                     limit: roomRules?.limit,
-                    onFinished: { lobbyVm.leave() }
+                    onFinished: { lobbyVm.leave() },
+                    autoConfirmSec: roomRules?.autoConfirmSec ?? 0
                 )
                 lobbyVm.onPlayerAct = { seat, el in
                     if let msg = try? el.decode(GameMsg.self), case .act(let act) = msg {
@@ -187,8 +219,8 @@ private struct LobbyView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(24)
         .sheet(isPresented: $showCreate) {
-            CreateRoomSheet(defaultPlayerName: vm.myName) { playerName, name, seats, password, preset, limit in
-                vm.createRoom(playerName: playerName, roomName: name, maxSeats: seats, password: password, preset: preset, limit: limit)
+            CreateRoomSheet(defaultPlayerName: vm.myName.isEmpty ? L("default_player_name") : vm.myName) { playerName, name, seats, password, preset, limit, autoConfirm in
+                vm.createRoom(playerName: playerName, roomName: name, maxSeats: seats, password: password, preset: preset, limit: limit, autoConfirmSec: autoConfirm)
                 showCreate = false
             } onDismiss: {
                 showCreate = false
@@ -198,7 +230,7 @@ private struct LobbyView: View {
             get: { joinFor.map { JoinTarget(room: $0) } },
             set: { joinFor = $0?.room }
         )) { target in
-            JoinRoomSheet(room: target.room, defaultPlayerName: vm.myName) { playerName, pwd in
+            JoinRoomSheet(room: target.room, defaultPlayerName: vm.myName.isEmpty ? L("default_player_name") : vm.myName) { playerName, pwd in
                 vm.join(roomId: target.room.id, password: pwd, playerName: playerName)
                 joinFor = nil
             } onDismiss: {
@@ -260,7 +292,7 @@ private struct JoinRoomSheet: View {
 
 private struct CreateRoomSheet: View {
     let defaultPlayerName: String
-    let onCreate: (String, String, Int, String?, RulesGameType, Int) -> Void
+    let onCreate: (String, String, Int, String?, RulesGameType, Int, Int) -> Void
     let onDismiss: () -> Void
 
     @State private var playerName = ""
@@ -269,6 +301,7 @@ private struct CreateRoomSheet: View {
     @State private var password = ""
     @State private var preset = RulesGameType.Sochy
     @State private var limitText = "10"
+    @State private var autoConfirm = 0
 
     var body: some View {
         NavigationStack {
@@ -305,6 +338,16 @@ private struct CreateRoomSheet: View {
                 }
                 TextField(L("sheet_limit_label"), text: $limitText)
                     .keyboardType(.numberPad)
+                // confirmations auto-continue after a pause (never real moves)
+                Section(header: Text(L("mp_auto_confirm"))) {
+                    Picker("", selection: $autoConfirm) {
+                        Text(L("mp_auto_off")).tag(0)
+                        ForEach([5, 10, 30], id: \.self) { v in
+                            Text(LF("mp_auto_sec_fmt", v)).tag(v)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
                 TextField(L("mp_password_optional"), text: Binding(
                     get: { password },
                     set: { password = String($0.prefix(32)) }
@@ -321,7 +364,8 @@ private struct CreateRoomSheet: View {
                             seats,
                             password,
                             preset,
-                            Int(limitText) ?? 10
+                            Int(limitText) ?? 10,
+                            autoConfirm
                         )
                     }
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty
@@ -396,24 +440,56 @@ private struct RoomView: View {
         }
     }
 
+    @State private var codeCopied = false
+    @State private var dragConsumed = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(room.name)
                 .font(.system(size: 32))
                 .foregroundColor(Theme.accentGold)
-            Text(LF("mp_room_code_fmt", room.id) + "  ·  " + rulesSummary(vm, room))
+            // Prominent, copyable room code (QA S-04)
+            Text(room.id)
+                .font(.system(size: 44, weight: .bold))
+                .kerning(6)
+                .foregroundColor(Theme.accentGold)
+                .padding(.top, 4)
+                .onTapGesture {
+                    UIPasteboard.general.string = room.id
+                    codeCopied = true
+                }
+            Text(L(codeCopied ? "mp_code_copied" : "mp_tap_to_copy"))
+                .font(.system(size: 12))
+                .foregroundColor(.white.opacity(0.6))
+            Text(rulesSummary(vm, room))
                 .font(.system(size: 14))
                 .foregroundColor(.white.opacity(0.6))
+                .padding(.top, 6)
                 .padding(.bottom, 16)
 
             ForEach(0..<room.maxSeats, id: \.self) { i in
                 let seat = room.seats.indices.contains(i) ? room.seats[i] : nil
+                let draggable = vm.isHost && !vm.started && i > 0 && seat != nil
                 HStack {
                     Text(seatLabel(seat, index: i))
                         .font(.system(size: 19))
                         .foregroundColor(seat == nil ? .white.opacity(0.4) : .white)
                     Spacer()
-                    if vm.isHost && i > 0 && seat != nil && !vm.started {
+                    if draggable {
+                        Button {
+                            vm.swapSeats(i, i - 1)
+                        } label: {
+                            Text("▲").font(.system(size: 15))
+                                .foregroundColor(i > 1 ? Theme.accentGold : .white.opacity(0.25))
+                        }
+                        .disabled(i <= 1)
+                        Button {
+                            vm.swapSeats(i, i + 1)
+                        } label: {
+                            Text("▼").font(.system(size: 15))
+                                .foregroundColor(i < room.maxSeats - 1 ? Theme.accentGold : .white.opacity(0.25))
+                        }
+                        .disabled(i >= room.maxSeats - 1)
                         Button {
                             vm.kick(i)
                         } label: {
@@ -422,6 +498,24 @@ private struct RoomView: View {
                     }
                 }
                 .padding(.vertical, 6)
+                .contentShape(Rectangle())
+                .gesture(
+                    LongPressGesture(minimumDuration: 0.35)
+                        .sequenced(before: DragGesture())
+                        .onChanged { value in
+                            // long-press drag swaps with the neighbor row
+                            guard draggable, case .second(true, let drag?) = value, !dragConsumed else { return }
+                            let dy = drag.translation.height
+                            if dy < -40 && i > 1 {
+                                vm.swapSeats(i, i - 1)
+                                dragConsumed = true
+                            } else if dy > 40 && i < room.maxSeats - 1 {
+                                vm.swapSeats(i, i + 1)
+                                dragConsumed = true
+                            }
+                        }
+                        .onEnded { _ in dragConsumed = false }
+                )
             }
 
             if !vm.started && vm.isHost {
@@ -472,9 +566,11 @@ private struct RoomView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(24)
+        .onChange(of: room.id) { _ in codeCopied = false }
         .sheet(isPresented: $showPicker) {
             LoadScoresSheet(playersCount: room.maxSeats) { calc in
                 vm.loadedCalc = calc
+                vm.arrangeByPulka() // matched names take their pulka columns
                 showPicker = false
             } onDismiss: {
                 showPicker = false

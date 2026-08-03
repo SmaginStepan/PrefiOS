@@ -137,11 +137,13 @@ final class GameViewModel: ObservableObject {
         sendToSeat: @escaping (Int, GameMsg.State) -> Void,
         initialCalc: Calculation? = nil,
         rules: GameRules? = nil,
-        limit: Int? = nil
+        limit: Int? = nil,
+        autoConfirmSec: Int = 0
     ) {
         if started { return }
         started = true
         hosted = true
+        self.autoConfirmSec = autoConfirmSec
         let n = seatKinds.count
         // resume a saved pulka (its columns seated to match the room players),
         // or a fresh sheet with the room's rules
@@ -219,7 +221,7 @@ final class GameViewModel: ObservableObject {
         }
     }
 
-    func start(app: AppState, ai1Name: String, ai2Name: String) {
+    func start(app: AppState, ai1Name: String, ai2Name: String, playerName: String) {
         self.app = app
         if !started {
             if let existing = app.game {
@@ -229,11 +231,34 @@ final class GameViewModel: ObservableObject {
             }
             app.game = game
             started = true
-            refresh()
         }
+        // Names that were never customized follow the app language, even for a
+        // game saved under another locale (QA M-01).
+        if AppSettings.isDefaultName(game.calc.scores[0].name) {
+            game.calc.scores[0].name = playerName
+        }
+        if GameViewModel.ai1Defaults.contains(game.calc.scores[1].name) {
+            game.calc.scores[1].name = ai1Name
+        }
+        if GameViewModel.ai2Defaults.contains(game.calc.scores[2].name) {
+            game.calc.scores[2].name = ai2Name
+        }
+        refresh()
         // The original page always kicked the game loop on navigation (including
         // returning from the score sheet).
         gameNext()
+    }
+
+    private static let ai1Defaults: Set<String> = ["Первый", "West", "Oeste"]
+    private static let ai2Defaults: Set<String> = ["Второй", "East", "Este"]
+
+    /// In-table pulka peek (QA S-02): current standings over the live calc.
+    @Published private(set) var scorePeek: ScoreSnap?
+
+    func toggleScorePeek() {
+        scorePeek = scorePeek != nil
+            ? nil
+            : RemoteViews.buildScoresFrom(session?.matchCalc ?? game.calc, 0)
     }
 
     private func buildTableInfo() -> TableInfo {
@@ -252,6 +277,8 @@ final class GameViewModel: ObservableObject {
         info.controller = game.turnController()
         info.watching = session?.hostActive == false
         info.sitOutName = session?.sitOutName
+        info.waitingFor = session?.waitingNames() ?? []
+        info.youConfirmed = session?.hasConfirmed(0) == true
         info.gameResult = game.phase == .EndPlay ? game.getGameResult() : nil
         info.showPrikupBtn1 = (game.phase == .Playing || game.phase == .EndTurn)
             && (game.currentGameType == .Normal || game.currentGameType == .Miser)
@@ -290,9 +317,82 @@ final class GameViewModel: ObservableObject {
         field = trickCollected ? f.filter { !$0.isInPlay } : f
         pinnedOverlays.removeAll()
         info = buildTableInfo()
-        scoresOverlay = (hosted && s != nil && (game.phase == .ScoreView || game.phase == .Ended))
+        // the sheet hides once the host confirmed it; final standings stay
+        scoresOverlay = (hosted && s != nil &&
+            ((game.phase == .ScoreView && s!.hasConfirmed(0) == false) || game.phase == .Ended))
             ? RemoteViews.buildScoresFrom(s!.matchCalc, 0)
             : nil
+        armAutoConfirm()
+    }
+
+    // ---- auto-confirm (host option): confirmations only, never real moves ----
+    private var autoConfirmSec = 0
+    private var autoArmedKey: Int64 = -1
+    private var autoTask: Task<Void, Never>?
+
+    private func armAutoConfirm() {
+        guard let s = session else { return }
+        if autoConfirmSec <= 0 { return }
+        if !s.atConfirmStop {
+            autoTask?.cancel()
+            autoTask = nil
+            autoArmedKey = -1
+            return
+        }
+        let key = s.stopKey
+        if key == autoArmedKey { return }
+        autoArmedKey = key
+        autoTask?.cancel()
+        let delay = autoConfirmSec
+        autoTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
+            guard !Task.isCancelled, let self = self, let s = self.session else { return }
+            let anims: [Game.Animation] = await withCheckedContinuation { (continuation: CheckedContinuation<[Game.Animation], Never>) in
+                self.gameQueue.async {
+                    if s.stopKey == key && s.atConfirmStop {
+                        do {
+                            try s.confirmAll()
+                        } catch {
+                            NSLog("Pref: auto-confirm error: %@", "\(error)")
+                        }
+                        continuation.resume(returning: s.drainAnims())
+                    } else {
+                        continuation.resume(returning: [])
+                    }
+                }
+            }
+            self.syncHostedGame()
+            if !anims.isEmpty {
+                self.busy = true
+                await self.processAnimations(queue: anims)
+                self.busy = false
+            }
+            self.buildMenu()
+            self.refresh()
+        }
+    }
+
+    /// The host confirms the current stop (trick, result, prikup or score).
+    private func hostedConfirm() {
+        guard let s = session else { return }
+        Task {
+            busy = true
+            let anims: [Game.Animation] = await withCheckedContinuation { (continuation: CheckedContinuation<[Game.Animation], Never>) in
+                gameQueue.async {
+                    do {
+                        try s.confirmSeat(0)
+                    } catch {
+                        NSLog("Pref: hosted confirm error: %@", "\(error)")
+                    }
+                    continuation.resume(returning: s.drainAnims())
+                }
+            }
+            syncHostedGame()
+            await processAnimations(queue: anims)
+            busy = false
+            buildMenu()
+            refresh()
+        }
     }
 
     func gameNext() {
@@ -492,30 +592,24 @@ final class GameViewModel: ObservableObject {
             showTricks = false
             return
         }
-        if let s = session, !s.hostActive {
-            // sitting 4-player dealer: taps release the current spectator stop
-            // (prikup, trick, deal result or score sheet)
-            if s.spectatorAwaiting {
-                Task {
-                    busy = true
-                    let anims: [Game.Animation] = await withCheckedContinuation { continuation in
-                        gameQueue.async {
-                            do {
-                                try s.dealerConfirm()
-                            } catch {
-                                NSLog("Pref: dealer confirm error: %@", "\(error)")
-                            }
-                            continuation.resume(returning: s.drainAnims())
-                        }
-                    }
-                    syncHostedGame()
-                    await processAnimations(queue: anims)
-                    busy = false
-                    buildMenu()
-                    refresh()
+        if let s = session {
+            // hosted: confirmations are order-independent — anyone who hasn't
+            // confirmed the current stop may do so at any time
+            switch game.phase {
+            case .PrikupOpened, .EndPlay, .ScoreView:
+                if !s.hasConfirmed(0) {
+                    hostedConfirm()
                 }
+                return
+            case .EndTurn:
+                if !s.hasConfirmed(0) {
+                    hideDeal()
+                }
+                return
+            default:
+                break
             }
-            return
+            if !s.hostActive { return } // sitting dealer only watches the play
         }
         if !localTurnAllowed { return }
         switch game.phase {
@@ -527,12 +621,6 @@ final class GameViewModel: ObservableObject {
         case .EndPlay:
             game.endConfirm()
             gameNext()
-        case .ScoreView:
-            // hosted games treat the score view as a confirm turn
-            if hosted {
-                game.scoreClose()
-                gameNext()
-            }
         default:
             break
         }
@@ -552,8 +640,13 @@ final class GameViewModel: ObservableObject {
             busy = false
             trickCollected = true
             trickCollectedAt = game.deal.totalTaken
-            game.turnClose()
-            gameNext()
+            if session != nil {
+                // hosted: order-independent confirm; the trick stays for others
+                hostedConfirm()
+            } else {
+                game.turnClose()
+                gameNext()
+            }
         }
     }
 

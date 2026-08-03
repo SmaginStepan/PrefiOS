@@ -79,6 +79,10 @@ public struct TableInfo: Codable {
     public var watching: Bool = false
     /// name of the sitting 4-player dealer, shown top-center
     public var sitOutName: String?
+    /// humans still to confirm the current stop (trick/result/score)
+    public var waitingFor: [String] = []
+    /// this viewer already confirmed the current stop
+    public var youConfirmed: Bool = false
     public var gameResult: Calculation.GameResult?
     public var showPrikupBtn1: Bool = false
     public var showPrikupBtn2: Bool = false
@@ -91,8 +95,8 @@ public struct TableInfo: Codable {
     private enum CodingKeys: String, CodingKey {
         case phase, names, dealer, taken, currentGameType, contractor, isVister,
              curentBids, maxBid, playerToTake, playerInTurn, controller, watching,
-             sitOutName, gameResult, showPrikupBtn1, showPrikupBtn2,
-             showPrikupHideBtn, showTricksBtn
+             sitOutName, waitingFor, youConfirmed, gameResult, showPrikupBtn1,
+             showPrikupBtn2, showPrikupHideBtn, showTricksBtn
     }
 
     public init(from decoder: Decoder) throws {
@@ -111,6 +115,8 @@ public struct TableInfo: Codable {
         controller = try c.decodeIfPresent(Int.self, forKey: .controller) ?? 0
         watching = try c.decodeIfPresent(Bool.self, forKey: .watching) ?? false
         sitOutName = try c.decodeIfPresent(String.self, forKey: .sitOutName)
+        waitingFor = try c.decodeIfPresent([String].self, forKey: .waitingFor) ?? []
+        youConfirmed = try c.decodeIfPresent(Bool.self, forKey: .youConfirmed) ?? false
         gameResult = try c.decodeIfPresent(Calculation.GameResult.self, forKey: .gameResult)
         showPrikupBtn1 = try c.decodeIfPresent(Bool.self, forKey: .showPrikupBtn1) ?? false
         showPrikupBtn2 = try c.decodeIfPresent(Bool.self, forKey: .showPrikupBtn2) ?? false
@@ -134,6 +140,8 @@ public struct TableInfo: Codable {
         try c.encode(controller, forKey: .controller)
         try c.encode(watching, forKey: .watching)
         try c.encodeIfPresent(sitOutName, forKey: .sitOutName)
+        try c.encode(waitingFor, forKey: .waitingFor)
+        try c.encode(youConfirmed, forKey: .youConfirmed)
         try c.encodeIfPresent(gameResult, forKey: .gameResult)
         try c.encode(showPrikupBtn1, forKey: .showPrikupBtn1)
         try c.encode(showPrikupBtn2, forKey: .showPrikupBtn2)

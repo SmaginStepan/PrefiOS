@@ -63,7 +63,9 @@ public enum RemoteViews {
         _ game: Game,
         _ viewer: Int,
         watching: Bool = false,
-        sitOutName: String? = nil
+        sitOutName: String? = nil,
+        waitingFor: [String] = [],
+        youConfirmed: Bool = false
     ) -> TableInfo {
         func rotList<T>(_ src: [T]) -> [T] {
             (0..<3).map { rel in src[(rel + viewer) % 3] }
@@ -91,6 +93,8 @@ public enum RemoteViews {
         info.controller = rot(game.turnController(), viewer)
         info.watching = watching
         info.sitOutName = sitOutName
+        info.waitingFor = waitingFor
+        info.youConfirmed = youConfirmed
         info.gameResult = game.phase == .EndPlay ? rotResult(game.getGameResult(), viewer) : nil
         info.showPrikupBtn1 = false
         info.showPrikupBtn2 = false

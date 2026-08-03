@@ -10,6 +10,14 @@ public enum SeatKind {
 /// stops at EVERY input point; this class dispatches each stop to the seat's
 /// driver: the local UI, the built-in AI, or a remote player over the relay.
 ///
+/// Confirmation phases (opened prikup, finished trick, deal result, score
+/// sheet) are handled as ORDER-INDEPENDENT stops: every human — including the
+/// 4-player sitting dealer — confirms in any order; once a player confirmed,
+/// their view moves on (trick hidden, score sheet dismissed) and shows who is
+/// still being waited for. The engine's own turn-ordered confirm cycle is
+/// applied in one go when the last human confirms. Only real moves (bids,
+/// whist, discards, cards) stay with the seat that owns them.
+///
 /// 3 seats: `game` runs the whole match on `matchCalc` directly.
 /// 4 seats: the dealer sits out; every deal is a fresh single-deal 3-player
 /// game among the other three, and this session maps its seats onto the real
@@ -51,28 +59,103 @@ public final class HostGameSession {
 
     private var pendingResult: Calculation.GameResult?
     private var scoreWritten = false
-    private var dealerConfirmed = true
 
-    // A human sitting dealer watches the deal at its own pace: the game holds
-    // at the prikup, after every trick and at the deal result until they tap.
-    private var spectatorSawTrick = -1 // deal.totalTaken value already confirmed
-    private var spectatorSawPrikup = false
-    private var spectatorSawEndPlay = false
+    // ---- order-independent confirm stops -----------------------------------
 
-    private var dealerIsHuman: Bool {
-        four && sittingOut >= 0 && seats[sittingOut] != .bot
+    private let confirmPhases: Set<GamePhase> = [.PrikupOpened, .EndTurn, .EndPlay, .ScoreView]
+
+    /// Real seats that confirmed the current stop.
+    private var stopConfirmed = Set<Int>()
+    private var stopId: String?
+
+    /// Bumped whenever a new stop begins; used by the auto-confirm timer.
+    public private(set) var stopKey: Int64 = 0
+
+    private func humanSeats() -> [Int] {
+        seats.indices.filter { seats[$0] != .bot }
     }
 
-    /// The sitting dealer must tap through the current mid-deal stop.
-    private func spectatorHold() -> Bool {
-        if !dealerIsHuman { return false }
+    /// The real seat whose own action produced the stop — no confirm needed:
+    /// the last card of the trick, or the contractor at the opened prikup.
+    private func stopMover() -> Int {
         switch game.phase {
-        case .PrikupOpened: return !spectatorSawPrikup
-        case .EndTurn: return spectatorSawTrick != game.deal.totalTaken
-        case .EndPlay: return !spectatorSawEndPlay
-        default: return false
+        // after the closing card, playCard advanced playerInTurn one step back
+        case .EndTurn:
+            let g = (game.playerInTurn + 1) % 3
+            return dealMap.indices.contains(g) ? dealMap[g] : -1
+        case .PrikupOpened:
+            return dealMap.indices.contains(game.contractor) ? dealMap[game.contractor] : -1
+        default:
+            return -1
         }
     }
+
+    private func currentStopId() -> String? {
+        let phase = game.phase
+        if !confirmPhases.contains(phase) { return nil }
+        let deal = ObjectIdentifier(game.deal).hashValue
+        return "\(deal)-\(phase)-\(game.deal.totalTaken)"
+    }
+
+    /// True while the session waits for confirmations.
+    public var atConfirmStop: Bool {
+        stopId != nil && stopId == currentStopId()
+    }
+
+    public func hasConfirmed(_ seat: Int) -> Bool {
+        atConfirmStop && stopConfirmed.contains(seat)
+    }
+
+    /// Names of the humans everyone is waiting for at the current stop.
+    public func waitingNames() -> [String] {
+        atConfirmStop ? humanSeats().filter { !stopConfirmed.contains($0) }.map { names[$0] } : []
+    }
+
+    /// A human confirmed the current stop (any order).
+    public func confirmSeat(_ seat: Int) throws {
+        if !confirmPhases.contains(game.phase) { return }
+        if seat < 0 || seat >= seats.count || seats[seat] == .bot { return }
+        if stopId != currentStopId() { return } // stale tap from a previous stop
+        stopConfirmed.insert(seat)
+        try pump()
+    }
+
+    /// Auto-confirm timer fired: everyone still pending is confirmed.
+    public func confirmAll() throws {
+        if !confirmPhases.contains(game.phase) { return }
+        stopConfirmed.formUnion(humanSeats())
+        try pump()
+    }
+
+    /// Run the engine's whole confirm cycle for the finished stop.
+    private func applyStop() throws {
+        switch game.phase {
+        case .PrikupOpened:
+            game.prikupClose()
+            try game.next()
+        case .EndTurn:
+            while game.phase == .EndTurn {
+                game.turnClose()
+                try game.next()
+            }
+        case .EndPlay:
+            while game.phase == .EndPlay {
+                game.endConfirm()
+                try game.next()
+            }
+        case .ScoreView:
+            while game.phase == .ScoreView {
+                game.scoreClose()
+                try game.next()
+            }
+        default:
+            break
+        }
+        stopId = nil
+        stopConfirmed.removeAll()
+    }
+
+    // ------------------------------------------------------------------------
 
     // Animations produced by other seats' moves, replayed by the host UI.
     // Guests still get plain state snapshots.
@@ -84,14 +167,6 @@ public final class HostGameSession {
         pendingAnims.removeAll()
         return res
     }
-
-    // Seats (real) that already confirmed the trick being shown in EndTurn:
-    // the engine keeps it in deal.inPlay until everyone confirmed, but a
-    // player who tapped through shouldn't see it come back. Tied to the
-    // trick number: a passive player can see several tricks go by without
-    // the phase ever leaving EndTurn between their confirms.
-    private var trickConfirmed = Set<Int>()
-    private var trickConfirmedAt = -1
 
     public init(
         seats: [SeatKind],
@@ -119,12 +194,6 @@ public final class HostGameSession {
 
     private func gameSeatOf(_ real: Int) -> Int {
         dealMap.firstIndex(of: real) ?? -1
-    }
-
-    /// True when the sitting dealer still has to confirm the deal's score.
-    public var awaitingDealerConfirm: Bool {
-        four && scoreWritten && !dealerConfirmed &&
-            (game.phase == .ScoreView || game.phase == .Ended)
     }
 
     public func start() throws {
@@ -172,11 +241,8 @@ public final class HostGameSession {
         game = g
         pendingResult = nil
         scoreWritten = false
-        dealerConfirmed = seats[d] == .bot
-        spectatorSawTrick = -1
-        spectatorSawPrikup = false
-        spectatorSawEndPlay = false
-        trickConfirmed.removeAll()
+        stopId = nil
+        stopConfirmed.removeAll()
         try game.next()
     }
 
@@ -202,7 +268,7 @@ public final class HostGameSession {
         scoreWritten = true
     }
 
-    /// Advance until a human (local or remote) must act, playing bots inline.
+    /// Advance until a human must act, playing bots inline.
     public func pump() throws {
         while true {
             pendingAnims.append(contentsOf: game.animations) // kept for the host UI to replay
@@ -215,7 +281,6 @@ public final class HostGameSession {
             }
             if game.phase == .Ended {
                 if !four { break } // 3p: the match itself is over
-                if !dealerConfirmed { break } // hold until the sitting dealer taps through
                 if matchCalc.isFinished {
                     matchEnded = true
                     break
@@ -223,8 +288,22 @@ public final class HostGameSession {
                 try newDeal4()
                 continue
             }
-            if spectatorHold() {
-                // wait for the sitting dealer's tap before the actives move on
+            if confirmPhases.contains(game.phase) {
+                let id = currentStopId()
+                if stopId != id {
+                    stopId = id
+                    stopConfirmed.removeAll()
+                    // whoever made the move that produced this stop saw it happen
+                    let mover = stopMover()
+                    if mover >= 0 {
+                        stopConfirmed.insert(mover)
+                    }
+                    stopKey += 1
+                }
+                if humanSeats().allSatisfy({ stopConfirmed.contains($0) }) {
+                    try applyStop()
+                    continue
+                }
                 broadcast()
                 onLocalTurn()
                 return
@@ -259,48 +338,66 @@ public final class HostGameSession {
 
     /// Send every REMOTE seat its personal view of the current state.
     private func broadcast(badMoveFor: Int = -1) {
-        if game.phase != .EndTurn || game.deal.totalTaken != trickConfirmedAt {
-            trickConfirmed.removeAll()
-        }
         let ended = four ? matchEnded : game.phase == .Ended
+        let atStop = atConfirmStop
+        let waiting = waitingNames()
         let withScores = game.phase == .ScoreView || game.phase == .Ended
         for seat in seats.indices {
             if seats[seat] != .remote {
                 continue
             }
+            let confirmed = stopConfirmed.contains(seat) && atStop
+            // a confirmed viewer already dismissed the score sheet; final
+            // standings at game end always show
+            let scoresFor = (withScores && !(confirmed && !ended))
+                ? RemoteViews.buildScoresFrom(matchCalc, seat) : nil
             let g = gameSeatOf(seat)
+            let yourTurn = !ended && (atStop
+                ? !confirmed
+                : g >= 0 && game.phase != .Ended && game.turnController() == g)
+            let ask: Ask?
+            if !yourTurn {
+                ask = nil
+            } else if atStop {
+                ask = Ask("confirm")
+            } else {
+                ask = RemoteViews.buildAsk(game)
+            }
             if g >= 0 {
-                let yourTurn = !ended && game.phase != .Ended && game.turnController() == g
                 var fieldFor = RemoteViews.buildFieldFor(game, g)
-                if trickConfirmed.contains(seat) {
+                if confirmed && game.phase == .EndTurn {
                     fieldFor = fieldFor.filter { !$0.isInPlay }
                 }
                 sendToSeat(
                     seat,
                     GameMsg.State(
                         field: fieldFor,
-                        info: RemoteViews.buildTableInfoFor(game, g, sitOutName: sitOutName),
+                        info: RemoteViews.buildTableInfoFor(
+                            game, g, sitOutName: sitOutName,
+                            waitingFor: waiting, youConfirmed: confirmed
+                        ),
                         yourTurn: yourTurn,
-                        ask: yourTurn ? RemoteViews.buildAsk(game) : nil,
+                        ask: ask,
                         badMove: seat == badMoveFor,
                         ended: ended,
-                        scores: withScores ? RemoteViews.buildScoresFrom(matchCalc, seat) : nil
+                        scores: scoresFor
                     )
                 )
             } else {
-                // the sitting dealer spectates; they tap through the prikup,
-                // every trick, the deal result and the score sheet
-                let confirm = !ended && (awaitingDealerConfirm || spectatorHold())
+                // the sitting dealer spectates; they confirm the same stops
                 sendToSeat(
                     seat,
                     GameMsg.State(
                         field: RemoteViews.buildFieldFor(game, 0, spectator: true),
-                        info: RemoteViews.buildTableInfoFor(game, 0, watching: true, sitOutName: sitOutName),
-                        yourTurn: confirm,
-                        ask: confirm ? Ask("confirm") : nil,
+                        info: RemoteViews.buildTableInfoFor(
+                            game, 0, watching: true, sitOutName: sitOutName,
+                            waitingFor: waiting, youConfirmed: confirmed
+                        ),
+                        yourTurn: yourTurn,
+                        ask: ask,
                         badMove: false,
                         ended: ended,
-                        scores: withScores ? RemoteViews.buildScoresFrom(matchCalc, seat) : nil
+                        scores: scoresFor
                     )
                 )
             }
@@ -320,40 +417,15 @@ public final class HostGameSession {
         broadcast()
     }
 
-    /// Anything the sitting dealer may currently tap through.
-    public var spectatorAwaiting: Bool {
-        awaitingDealerConfirm || spectatorHold()
-    }
-
-    /// The sitting dealer tapped: release whatever stop is pending.
-    public func dealerConfirm() throws {
-        if awaitingDealerConfirm {
-            dealerConfirmed = true
-            if game.phase == .Ended {
-                try pump()
-            }
-            return
-        }
-        if !spectatorHold() { return }
-        switch game.phase {
-        case .PrikupOpened: spectatorSawPrikup = true
-        case .EndTurn: spectatorSawTrick = game.deal.totalTaken
-        case .EndPlay: spectatorSawEndPlay = true
-        default: return
-        }
-        try pump()
-    }
-
     /// Apply a remote player's answer. Ignores messages from the wrong seat.
     public func onRemoteAct(_ seat: Int, _ act: GameMsg.Act) throws {
         guard seat >= 0, seat < seats.count, seats[seat] == .remote else { return }
         if matchEnded { return }
-        if four && seat == sittingOut {
-            if act.confirm == true {
-                try dealerConfirm()
-            }
+        if act.confirm == true && confirmPhases.contains(game.phase) {
+            try confirmSeat(seat)
             return
         }
+        if four && seat == sittingOut { return } // the spectator has no other input
         let g = gameSeatOf(seat)
         if g < 0 || game.phase == .Ended || game.turnController() != g { return }
 
@@ -391,20 +463,6 @@ public final class HostGameSession {
             if !game.playCard(card) {
                 ok = false
             }
-        case .PrikupOpened:
-            guard act.confirm == true else { return }
-            game.prikupClose()
-        case .EndTurn:
-            guard act.confirm == true else { return }
-            trickConfirmed.insert(seat)
-            trickConfirmedAt = game.deal.totalTaken
-            game.turnClose()
-        case .EndPlay:
-            guard act.confirm == true else { return }
-            game.endConfirm()
-        case .ScoreView:
-            guard act.confirm == true else { return }
-            game.scoreClose()
         default:
             return
         }

@@ -78,5 +78,18 @@ public final class AppSettings {
         return data.playerId
     }
 
+    /// True while the user never typed their own name.
+    public var isDefaultPlayerName: Bool {
+        AppSettings.isDefaultName(data.playerName)
+    }
+
+    // Per-locale placeholder names; treated as "not customized" so the
+    // display can follow the app language (QA M-01).
+    private static let defaultNames: Set<String> = ["", "Игрок", "Player", "Jugador"]
+
+    public static func isDefaultName(_ name: String) -> Bool {
+        defaultNames.contains(name.trimmingCharacters(in: .whitespaces))
+    }
+
     private static let fileName = "settings.json"
 }

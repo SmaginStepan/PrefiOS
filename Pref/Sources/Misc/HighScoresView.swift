@@ -1,6 +1,20 @@
 import SwiftUI
 import PrefEngine
 
+// The seeded leaderboard names are stored in Russian; outside the Russian
+// locale they are shown transliterated (QA M-02).
+private let seededNameTranslit: [String: String] = [
+    "Эйнштейн": "Einstein",
+    "Да Винчи": "Da Vinci",
+    "Перельман": "Perelman",
+    "Вован": "Vovan",
+    "Настасья": "Nastasya",
+    "Алексей": "Alexey",
+    "Андрей": "Andrey",
+    "Григорий": "Grigory",
+    "Ирина": "Irina",
+]
+
 /// Port of HighScores.xaml.cs.
 struct HighScoresView: View {
     let playerScore: Double?
@@ -10,8 +24,13 @@ struct HighScoresView: View {
     @State private var table = HighScoresTable.load()
     @State private var version = 0
     @State private var showNewRecord = false
-    @State private var playerName = AppSettings().playerName
+    @State private var playerName = AppSettings().isDefaultPlayerName
+        ? L("default_player_name") : AppSettings().playerName
     @State private var appeared = false
+
+    private var isRussian: Bool {
+        Bundle.main.preferredLocalizations.first?.hasPrefix("ru") == true
+    }
 
     private static let formatter: NumberFormatter = {
         let f = NumberFormatter()
@@ -51,7 +70,8 @@ struct HighScoresView: View {
                 let _ = version
                 ForEach(Array(table.scores.enumerated()), id: \.offset) { _, score in
                     HStack {
-                        Text(score.playerName)
+                        Text(isRussian ? score.playerName
+                            : (seededNameTranslit[score.playerName] ?? score.playerName))
                             .font(.system(size: 22))
                             .foregroundColor(score.lastAdded ? Color(red: 1, green: 0xEB / 255.0, blue: 0x3B / 255.0) : .gray)
                         Spacer()

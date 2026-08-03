@@ -81,7 +81,10 @@ struct SettingsView: View {
         }
         self.sourceRules = sourceRules
 
-        _playerName = State(initialValue: settings?.playerName ?? "")
+        // never-customized names show (and re-save as) the localized default
+        _playerName = State(initialValue: settings.map {
+            $0.isDefaultPlayerName ? L("default_player_name") : $0.playerName
+        } ?? "")
         _limitText = State(initialValue: String(settings?.limit ?? 40))
         _gameType = State(initialValue: sourceRules.gameType)
         _raspProgression = State(initialValue: sourceRules.raspasyProgression)

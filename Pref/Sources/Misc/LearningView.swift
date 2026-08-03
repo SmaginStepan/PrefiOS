@@ -53,6 +53,8 @@ struct LearningView: View {
 
     @State private var stages: [String] = []
     @State private var position = 1
+    // Confirm accidental back navigation once the course is underway (QA S-03)
+    @State private var showExit = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -93,6 +95,22 @@ struct LearningView: View {
         }
         .padding(24)
         .background(Theme.background)
+        .navigationBarBackButtonHidden(position > 1)
+        .toolbar {
+            if position > 1 {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showExit = true
+                    } label: {
+                        Image(systemName: "chevron.backward")
+                    }
+                }
+            }
+        }
+        .alert(L("learn_exit_q"), isPresented: $showExit) {
+            Button(L("learn_exit_yes"), role: .destructive) { onFinished() }
+            Button(L("close"), role: .cancel) {}
+        }
         .onAppear {
             if stages.isEmpty {
                 stages = loadCourse("tutorial")
