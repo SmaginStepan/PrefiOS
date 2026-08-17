@@ -313,6 +313,44 @@ final class GameViewModel: ObservableObject {
         gameNext()
     }
 
+    /// «Остальные мои»: the offerer takes everything remaining (распасы;
+    /// мизер — instantly for the declarer, bots never negotiate it).
+    func offerRestMine() {
+        if busy { return }
+        if let s = session {
+            Task {
+                busy = true
+                let anims: [Game.Animation] = await withCheckedContinuation { (continuation: CheckedContinuation<[Game.Animation], Never>) in
+                    gameQueue.async {
+                        do {
+                            try s.makeRestMineOffer(0)
+                        } catch {
+                            NSLog("Pref: rest-mine offer error: %@", "\(error)")
+                        }
+                        continuation.resume(returning: s.drainAnims())
+                    }
+                }
+                syncHostedGame()
+                await processAnimations(queue: anims)
+                busy = false
+                buildMenu()
+                refresh()
+            }
+            return
+        }
+        if game.phase != .Playing { return }
+        if game.currentGameType != .Raspasy && game.currentGameType != .Miser { return }
+        // single player: unilateral on raspasy/as declarer; bot catchers are
+        // excluded from this negotiation, so it always applies immediately
+        let remaining = 10 - game.deal.totalTaken
+        var taken: [Int: Int] = [:]
+        for s in 0..<3 {
+            taken[s] = game.deal.hands[s].taken + (s == 0 ? remaining : 0)
+        }
+        game.applyAgreement(taken)
+        gameNext()
+    }
+
     /// The host answers a pending offer.
     func respondAgreement(_ agree: Bool) {
         guard let s = session else { return }

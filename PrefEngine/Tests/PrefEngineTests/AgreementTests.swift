@@ -97,6 +97,42 @@ final class AgreementTests: XCTestCase {
         XCTAssertEqual(0, game.calc.scores[whister].visty[c] ?? 0, "whists voided")
     }
 
+    func testRestMineEndsRaspasyUnilaterally() throws {
+        let calc = Calculation(playersCount: 3, limit: 10)
+        let names = ["P0", "P1", "P2"]
+        for i in 0..<3 {
+            calc.scores[i].name = names[i]
+        }
+        let session = HostGameSession(
+            seats: [SeatKind](repeating: .remote, count: 3),
+            names: names,
+            matchCalc: calc,
+            sendToSeat: { _, _ in },
+            onLocalTurn: {}
+        )
+        try session.start()
+        // everyone passes -> распасы
+        for _ in 0..<3 {
+            let pas = Game.Bid()
+            pas.pas = true
+            try session.onRemoteAct(session.game.turnController(), GameMsg.Act(bid: pas))
+        }
+        XCTAssertEqual(GameType.Raspasy, session.game.currentGameType)
+        XCTAssertEqual(GamePhase.Playing, session.game.phase)
+        // «остальные мои» from seat 1: instant, no confirmations
+        try session.onRemoteAct(1, GameMsg.Act(restMine: true))
+        XCTAssertEqual(GamePhase.EndPlay, session.game.phase)
+        XCTAssertEqual(10, session.game.deal.hands[1].taken, "offerer holds every remaining trick")
+        XCTAssertEqual(0, session.game.deal.hands[0].taken)
+        XCTAssertEqual(0, session.game.deal.hands[2].taken)
+        // through the result confirms into the score: raspasy is written
+        for seat in 0..<3 {
+            try session.confirmSeat(seat)
+        }
+        XCTAssertEqual(10, calc.scores[1].gora, "mountain for ten tricks on raspasy")
+        XCTAssertTrue(calc.scores[0].pulya > 0 && calc.scores[2].pulya > 0, "non-takers write the pulya")
+    }
+
     func testConservativeBotRule() throws {
         let game = try gameAtPlay()
         let c = game.contractor

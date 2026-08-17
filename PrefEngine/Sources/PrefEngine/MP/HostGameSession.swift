@@ -191,6 +191,43 @@ public final class HostGameSession {
         )
     }
 
+    /// «Остальные мои»: the offerer takes every remaining trick, everyone else
+    /// keeps their resolved count. On распасы, and on мизер from the declarer,
+    /// it applies instantly; from a мизер catcher, the other HUMAN non-declarer
+    /// players must confirm (bots are excluded from this negotiation).
+    public func makeRestMineOffer(_ realSeat: Int) throws {
+        if matchEnded || pendingOffer != nil { return }
+        if game.phase != .Playing { return }
+        let raspasy = game.currentGameType == .Raspasy
+        let miser = game.currentGameType == .Miser
+        if !raspasy && !miser { return }
+        let g = gameSeatOf(realSeat)
+        if g < 0 { return } // the sitting dealer never offers
+        let remaining = 10 - game.deal.totalTaken
+        var taken: [Int: Int] = [:]
+        for s in 0..<3 {
+            taken[s] = game.deal.hands[s].taken + (s == g ? remaining : 0)
+        }
+        if raspasy || g == game.contractor {
+            try applyOffer(taken, noVists: false) // unilateral
+            return
+        }
+        // мизер catcher: human non-declarer players confirm, declarer doesn't
+        var responders = Set<Int>()
+        for r in seats.indices {
+            if r == realSeat || seats[r] == .bot { continue }
+            if gameSeatOf(r) == game.contractor { continue }
+            responders.insert(r)
+        }
+        if responders.isEmpty {
+            try applyOffer(taken, noVists: false)
+            return
+        }
+        pendingOffer = PendingOffer(byReal: realSeat, takenGame: taken, awaiting: responders)
+        broadcast()
+        onLocalTurn()
+    }
+
     /// An involved player proposes the deal's final trick counts.
     public func makeOffer(_ realSeat: Int, _ takenGame: [Int: Int]) throws {
         if matchEnded || pendingOffer != nil { return }
@@ -562,6 +599,10 @@ public final class HostGameSession {
         // player may propose, any pending responder may answer
         if let agree = act.agree {
             try respondOffer(seat, agree)
+            return
+        }
+        if act.restMine == true {
+            try makeRestMineOffer(seat)
             return
         }
         if let offerRel = act.offer, offerRel.count == 3 {

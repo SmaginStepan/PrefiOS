@@ -440,6 +440,7 @@ struct GameView: View {
                         offerStep = 0
                         vm.offerAgreement(taken)
                     },
+                    onRestMine: { vm.offerRestMine() },
                     pending: vm.offerDialog,
                     onRespond: { agree in vm.respondAgreement(agree) },
                     kx: kx, ky: ky, tableW: tableW, tableH: tableH
@@ -564,6 +565,7 @@ struct AgreementUi: View {
     @Binding var offerStep: Int
     @Binding var offerN: Int
     let onOffer: ([Int]) -> Void
+    let onRestMine: () -> Void
     let pending: OfferSnap?
     let onRespond: (Bool) -> Void
     let kx: Double
@@ -603,6 +605,13 @@ struct AgreementUi: View {
         if offerStep == 1 && Agreements.canOffer(info) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
+                    if Agreements.restMineAvailable(info) {
+                        listRow(L("offer_rest_mine")) {
+                            offerStep = 0
+                            offerN = 0
+                            onRestMine()
+                        }
+                    }
                     ForEach(Agreements.declarerOptions(info), id: \.self) { n in
                         listRow(declarerLabel(n)) {
                             let miser = info.currentGameType == .Miser

@@ -311,6 +311,7 @@ struct MpGuestView: View {
                         offerStep = 0
                         act(GameMsg.Act(offer: taken))
                     },
+                    onRestMine: { act(GameMsg.Act(restMine: true)) },
                     pending: st.offer,
                     onRespond: { agree in act(GameMsg.Act(agree: agree)) },
                     kx: kx, ky: ky, tableW: tableW, tableH: tableH

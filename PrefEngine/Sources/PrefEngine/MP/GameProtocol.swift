@@ -181,6 +181,8 @@ public enum GameMsg {
         public var confirm: Bool?
         /// propose an agreement: final trick counts, viewer-relative
         public var offer: [Int]?
+        /// the offer is «остальные мои» (raspasy/misère special)
+        public var restMine: Bool?
         /// answer to a pending offer
         public var agree: Bool?
 
@@ -193,6 +195,7 @@ public enum GameMsg {
             play: Card? = nil,
             confirm: Bool? = nil,
             offer: [Int]? = nil,
+            restMine: Bool? = nil,
             agree: Bool? = nil
         ) {
             self.bid = bid
@@ -203,6 +206,7 @@ public enum GameMsg {
             self.play = play
             self.confirm = confirm
             self.offer = offer
+            self.restMine = restMine
             self.agree = agree
         }
     }
@@ -217,7 +221,7 @@ extension GameMsg: Codable {
         // state
         case field, info, yourTurn, ask, badMove, ended, scores, takes, layout, standings
         // act (offer/agree are shared with state's offer key)
-        case bid, contract, vist, opening, discard, play, confirm, offer, agree
+        case bid, contract, vist, opening, discard, play, confirm, offer, restMine, agree
     }
 
     public init(from decoder: Decoder) throws {
@@ -248,6 +252,7 @@ extension GameMsg: Codable {
                 play: try c.decodeIfPresent(Card.self, forKey: .play),
                 confirm: try c.decodeIfPresent(Bool.self, forKey: .confirm),
                 offer: try c.decodeIfPresent([Int].self, forKey: .offer),
+                restMine: try c.decodeIfPresent(Bool.self, forKey: .restMine),
                 agree: try c.decodeIfPresent(Bool.self, forKey: .agree)
             ))
         default:
@@ -281,6 +286,7 @@ extension GameMsg: Codable {
             try c.encodeIfPresent(a.play, forKey: .play)
             try c.encodeIfPresent(a.confirm, forKey: .confirm)
             try c.encodeIfPresent(a.offer, forKey: .offer)
+            try c.encodeIfPresent(a.restMine, forKey: .restMine)
             try c.encodeIfPresent(a.agree, forKey: .agree)
         }
     }

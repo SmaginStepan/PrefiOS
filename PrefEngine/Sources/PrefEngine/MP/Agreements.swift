@@ -11,7 +11,7 @@ public enum Agreements {
     public static func canOffer(_ info: TableInfo) -> Bool {
         if info.phase != .Playing { return false }
         switch info.currentGameType {
-        case .Miser:
+        case .Miser, .Raspasy:
             return !info.watching // any of the three players; the sitting dealer only responds
         case .Normal:
             let whisters = Set(info.isVister.entries.filter { $0.value }.map { $0.key })
@@ -20,6 +20,20 @@ public enum Agreements {
         default:
             return false
         }
+    }
+
+    /// «Остальные мои» exists on распасы (the only option) and мизер.
+    public static func restMineAvailable(_ info: TableInfo) -> Bool {
+        info.phase == .Playing && !info.watching &&
+            (info.currentGameType == .Raspasy || info.currentGameType == .Miser)
+    }
+
+    /// «Остальные мои»: the viewer takes all remaining tricks, everyone else
+    /// keeps their resolved count (viewer-relative).
+    public static func restMineTaken(_ info: TableInfo) -> [Int] {
+        var res = info.taken
+        res[0] = info.taken[0] + remaining(info)
+        return res
     }
 
     /// Remaining (unresolved) tricks; the unfinished trick counts as remaining.
@@ -31,6 +45,7 @@ public enum Agreements {
     /// Normal games: contract-3 .. 10 clipped to what is still reachable and
     /// to what the other hands' current takes allow. Misère: 1..3.
     public static func declarerOptions(_ info: TableInfo) -> [Int] {
+        if info.currentGameType == .Raspasy { return [] } // only «остальные мои»
         let c = info.contractor
         let tC = info.taken.indices.contains(c) ? info.taken[c] : 0
         let r = remaining(info)

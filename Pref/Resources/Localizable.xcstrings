@@ -3980,6 +3980,29 @@
         }
       }
     },
+    "offer_rest_mine": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The rest are mine"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El resto es mío"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Остальные мои"
+          }
+        }
+      }
+    },
     "offer_surrender": {
       "extractionState": "manual",
       "localizations": {
