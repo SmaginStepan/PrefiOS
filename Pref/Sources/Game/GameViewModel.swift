@@ -261,6 +261,110 @@ final class GameViewModel: ObservableObject {
             : RemoteViews.buildScoresFrom(session?.matchCalc ?? game.calc, 0)
     }
 
+    private var matchAutoSaved = false
+
+    // ---- agreement offers («расписать») ------------------------------------
+
+    /// The offer currently frozen on the table (host view).
+    @Published private(set) var offerDialog: OfferSnap?
+
+    /// Propose the deal's final trick counts (host or single player).
+    func offerAgreement(_ finalTaken: [Int]) {
+        if busy || finalTaken.count != 3 { return }
+        var takenMap: [Int: Int] = [:]
+        for (i, v) in finalTaken.enumerated() {
+            takenMap[i] = v
+        }
+        if let s = session {
+            Task {
+                busy = true
+                let anims: [Game.Animation] = await withCheckedContinuation { (continuation: CheckedContinuation<[Game.Animation], Never>) in
+                    gameQueue.async {
+                        do {
+                            try s.makeOffer(0, takenMap)
+                        } catch {
+                            NSLog("Pref: offer error: %@", "\(error)")
+                        }
+                        continuation.resume(returning: s.drainAnims())
+                    }
+                }
+                syncHostedGame()
+                await processAnimations(queue: anims)
+                busy = false
+                buildMenu()
+                refresh()
+            }
+            return
+        }
+        // single player: the bots answer instantly with the conservative rule
+        if game.phase != .Playing { return }
+        let surrender = game.currentGameType == .Normal &&
+            game.contractor == 0 && finalTaken[0] == game.contract - 3
+        let miser = game.currentGameType == .Miser
+        let responders = miser
+            ? [1, 2]
+            : (game.isVister.entries.filter { $0.value }.map { $0.key } + [game.contractor]).filter { $0 != 0 }
+        let declinedBy = surrender ? nil : responders.first { !Agreements.botAccepts($0, game, takenMap) }
+        if let declinedBy = declinedBy {
+            transientHint = LF("offer_declined_fmt", game.calc.scores[declinedBy].name)
+            return
+        }
+        game.applyAgreement(takenMap, noVists: surrender)
+        gameNext()
+    }
+
+    /// The host answers a pending offer.
+    func respondAgreement(_ agree: Bool) {
+        guard let s = session else { return }
+        Task {
+            busy = true
+            let anims: [Game.Animation] = await withCheckedContinuation { (continuation: CheckedContinuation<[Game.Animation], Never>) in
+                gameQueue.async {
+                    do {
+                        try s.respondOffer(0, agree)
+                    } catch {
+                        NSLog("Pref: offer respond error: %@", "\(error)")
+                    }
+                    continuation.resume(returning: s.drainAnims())
+                }
+            }
+            syncHostedGame()
+            await processAnimations(queue: anims)
+            busy = false
+            buildMenu()
+            refresh()
+        }
+    }
+
+    /// Player-side "auto to the end of the deal": confirms everything except
+    /// the score sheet, where it switches itself off.
+    @Published private(set) var autoConfirmDeal = false
+
+    func toggleAutoConfirmDeal() {
+        autoConfirmDeal.toggle()
+        if autoConfirmDeal {
+            autoAdvanceDeal()
+        }
+    }
+
+    private func autoAdvanceDeal() {
+        guard let s = session, autoConfirmDeal else { return }
+        if game.phase == .ScoreView || game.phase == .Ended {
+            autoConfirmDeal = false // the score sheet waits for a real tap
+            return
+        }
+        if busy { return }
+        if !s.atConfirmStop || s.hasConfirmed(0) { return }
+        switch game.phase {
+        case .EndTurn:
+            hideDeal()
+        case .PrikupOpened, .EndPlay:
+            hostedConfirm()
+        default:
+            break
+        }
+    }
+
     private func buildTableInfo() -> TableInfo {
         var info = TableInfo()
         info.phase = game.phase
@@ -322,7 +426,16 @@ final class GameViewModel: ObservableObject {
             ((game.phase == .ScoreView && s!.hasConfirmed(0) == false) || game.phase == .Ended))
             ? RemoteViews.buildScoresFrom(s!.matchCalc, 0)
             : nil
+        // the finished match's pulka saves itself (host side);
+        // sittingOut < 0 means a 3-player match, where Ended is terminal
+        if hosted, let s = s, !matchAutoSaved,
+           s.matchEnded || (s.sittingOut < 0 && game.phase == .Ended) {
+            matchAutoSaved = true
+            _ = saveScoreSheet()
+        }
+        offerDialog = s?.offerSnapFor(0)
         armAutoConfirm()
+        autoAdvanceDeal()
     }
 
     // ---- auto-confirm (host option): confirmations only, never real moves ----

@@ -186,6 +186,8 @@ struct GameView: View {
 
     @EnvironmentObject private var app: AppState
     @StateObject private var vm = GameViewModel()
+    @State private var offerStep = 0
+    @State private var offerN = 0
     private let images = CardImages()
 
     var body: some View {
@@ -410,10 +412,38 @@ struct GameView: View {
                             }
                             .buttonStyle(.bordered)
                         }
+                        if vm.hosted {
+                            Button { vm.toggleAutoConfirmDeal() } label: {
+                                Text(L("game_btn_auto"))
+                                    .font(.system(size: 12))
+                                    .foregroundColor(vm.autoConfirmDeal ? Theme.accentYellow : .white)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        if Agreements.canOffer(info) {
+                            Button { offerStep = 1 } label: {
+                                Text(L("game_btn_offer")).font(.system(size: 12)).foregroundColor(.white)
+                            }
+                            .buttonStyle(.bordered)
+                        }
                         Spacer()
                     }
                     .padding(6)
                 }
+
+                // agreement offer menus + pending dialog
+                AgreementUi(
+                    info: info,
+                    offerStep: $offerStep,
+                    offerN: $offerN,
+                    onOffer: { taken in
+                        offerStep = 0
+                        vm.offerAgreement(taken)
+                    },
+                    pending: vm.offerDialog,
+                    onRespond: { agree in vm.respondAgreement(agree) },
+                    kx: kx, ky: ky, tableW: tableW, tableH: tableH
+                )
 
                 // In-table pulka peek: current standings, tap to dismiss
                 if let snap = vm.scorePeek, vm.scoresOverlay == nil {
@@ -522,6 +552,154 @@ struct GameView: View {
             .disabled(!btn2Enabled)
             .frame(width: 180 * kx, alignment: .center)
             .offset(x: 142 * kx, y: 385 * ky)
+        }
+    }
+}
+
+/// Agreement («расписать») UI shared by the host table and the guest screen:
+/// the two-step offer menu (declarer takes, then the whister split) and the
+/// modal panel while an offer is pending.
+struct AgreementUi: View {
+    let info: TableInfo
+    @Binding var offerStep: Int
+    @Binding var offerN: Int
+    let onOffer: ([Int]) -> Void
+    let pending: OfferSnap?
+    let onRespond: (Bool) -> Void
+    let kx: Double
+    let ky: Double
+    let tableW: Double
+    let tableH: Double
+
+    private var contract: Int {
+        info.maxBid?.contract ?? 0
+    }
+
+    private func declarerLabel(_ n: Int) -> String {
+        if info.currentGameType == .Miser { return LF("offer_miser_fmt", n) }
+        if n == contract { return LF("offer_own_fmt", n) }
+        if n > contract { return LF("offer_takes_fmt", n) }
+        if n == contract - 3 && info.contractor == 0 { return L("offer_surrender") }
+        return LF("offer_down_fmt", contract - n, n)
+    }
+
+    private func listRow(_ text: String, gold: Bool = false, action: @escaping () -> Void) -> some View {
+        Text(text)
+            .foregroundColor(gold ? Theme.accentYellow : .white)
+            .font(.system(size: gold ? 16 : 18))
+            .lineLimit(1)
+            .minimumScaleFactor(0.65)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
+    }
+
+    private var listBackground: some View {
+        Color(red: 0x12 / 255.0, green: 0x3B / 255.0, blue: 0x16 / 255.0).opacity(0.6)
+    }
+
+    var body: some View {
+        if offerStep == 1 && Agreements.canOffer(info) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Agreements.declarerOptions(info), id: \.self) { n in
+                        listRow(declarerLabel(n)) {
+                            let miser = info.currentGameType == .Miser
+                            let surrender = !miser && info.contractor == 0 && n == contract - 3
+                            if miser || surrender || Agreements.whisters(info).count != 2 {
+                                offerStep = 0
+                                offerN = 0
+                                onOffer(Agreements.buildTaken(info, n))
+                            } else {
+                                offerStep = 2
+                                offerN = n
+                            }
+                        }
+                    }
+                    listRow(L("close"), gold: true) {
+                        offerStep = 0
+                        offerN = 0
+                    }
+                }
+            }
+            .background(listBackground)
+            .border(Color(red: 0x2E / 255.0, green: 0x7D / 255.0, blue: 0x32 / 255.0).opacity(0.6), width: 1)
+            .frame(width: 203 * kx, height: 286 * ky)
+            .offset(x: 139 * kx, y: 37 * ky)
+        }
+        if offerStep == 2 {
+            let w = Agreements.whisters(info)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    Text(declarerLabel(offerN))
+                        .foregroundColor(Theme.accentYellow)
+                        .font(.system(size: 16))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                    ForEach(Array(Agreements.whistSplits(info, offerN).enumerated()), id: \.offset) { _, split in
+                        listRow("\(info.names[w[0]]) \(split.0) · \(info.names[w[1]]) \(split.1)") {
+                            let n = offerN
+                            offerStep = 0
+                            offerN = 0
+                            onOffer(Agreements.buildTaken(info, n, split: split))
+                        }
+                    }
+                    listRow(L("close"), gold: true) {
+                        offerStep = 1
+                        offerN = 0
+                    }
+                }
+            }
+            .background(listBackground)
+            .border(Color(red: 0x2E / 255.0, green: 0x7D / 255.0, blue: 0x32 / 255.0).opacity(0.6), width: 1)
+            .frame(width: 203 * kx, height: 286 * ky)
+            .offset(x: 139 * kx, y: 37 * ky)
+        }
+
+        if let offer = pending {
+            ZStack {
+                // the table is frozen until the offer is resolved
+                Color.black.opacity(0.45)
+                    .frame(width: tableW, height: tableH)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(LF("offer_from_fmt", offer.by))
+                        .foregroundColor(Theme.accentGold)
+                        .font(.system(size: 17, weight: .semibold))
+                    ForEach(0..<3, id: \.self) { i in
+                        Text("\(info.names[i]): \(i < offer.taken.count ? offer.taken[i] : 0)")
+                            .foregroundColor(.white)
+                            .font(.system(size: 16))
+                            .padding(.vertical, 2)
+                    }
+                    if offer.youRespond {
+                        HStack(spacing: 12) {
+                            Button {
+                                onRespond(true)
+                            } label: {
+                                Text(L("offer_accept"))
+                            }
+                            .buttonStyle(.borderedProminent)
+                            Button {
+                                onRespond(false)
+                            } label: {
+                                Text(L("offer_decline")).foregroundColor(.white)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .padding(.top, 10)
+                    } else {
+                        Text(L("offer_waiting"))
+                            .foregroundColor(.white.opacity(0.7))
+                            .font(.system(size: 13))
+                            .padding(.top, 10)
+                    }
+                }
+                .padding(20)
+                .background(Color(red: 0x10 / 255.0, green: 0x38 / 255.0, blue: 0x14 / 255.0).opacity(0.97),
+                            in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.accentGold, lineWidth: 1))
+            }
         }
     }
 }

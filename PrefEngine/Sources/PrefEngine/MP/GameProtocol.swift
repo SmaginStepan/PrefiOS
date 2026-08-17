@@ -53,6 +53,76 @@ public struct ScoreSnap: Codable {
     }
 }
 
+/// A pending agreement offer, viewer-relative.
+public struct OfferSnap: Codable {
+    /// display name of the player who made the offer
+    public var by: String
+    /// the agreed final trick counts (index = viewer-relative seat)
+    public var taken: [Int]
+    /// this viewer must answer accept/decline
+    public var youRespond: Bool
+
+    public init(by: String, taken: [Int], youRespond: Bool = false) {
+        self.by = by
+        self.taken = taken
+        self.youRespond = youRespond
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case by, taken, youRespond
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        by = try c.decodeIfPresent(String.self, forKey: .by) ?? ""
+        taken = try c.decodeIfPresent([Int].self, forKey: .taken) ?? []
+        youRespond = try c.decodeIfPresent(Bool.self, forKey: .youRespond) ?? false
+    }
+}
+
+/// One completed trick, viewer-relative (-1 prev / 0 you / 1 next).
+public struct TakeSnap: Codable {
+    public var first: Int
+    public var taker: Int
+    public var my: Card?
+    public var prev: Card?
+    public var next: Card?
+    public var prikup: Card?
+
+    public init(first: Int, taker: Int, my: Card? = nil, prev: Card? = nil, next: Card? = nil, prikup: Card? = nil) {
+        self.first = first
+        self.taker = taker
+        self.my = my
+        self.prev = prev
+        self.next = next
+        self.prikup = prikup
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case first, taker, my, prev, next, prikup
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        first = try c.decodeIfPresent(Int.self, forKey: .first) ?? 0
+        taker = try c.decodeIfPresent(Int.self, forKey: .taker) ?? 0
+        my = try c.decodeIfPresent(Card.self, forKey: .my)
+        prev = try c.decodeIfPresent(Card.self, forKey: .prev)
+        next = try c.decodeIfPresent(Card.self, forKey: .next)
+        prikup = try c.decodeIfPresent(Card.self, forKey: .prikup)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(first, forKey: .first)
+        try c.encode(taker, forKey: .taker)
+        try c.encodeIfPresent(my, forKey: .my)
+        try c.encodeIfPresent(prev, forKey: .prev)
+        try c.encodeIfPresent(next, forKey: .next)
+        try c.encodeIfPresent(prikup, forKey: .prikup)
+    }
+}
+
 public enum GameMsg {
     /// Full render state for one viewer.
     public struct State {
@@ -62,7 +132,16 @@ public enum GameMsg {
         public var ask: Ask?
         public var badMove: Bool
         public var ended: Bool
+        /// the score sheet everyone must look at (deal end / game end)
         public var scores: ScoreSnap?
+        /// completed tricks of the deal, for the guest tricks viewer
+        public var takes: [TakeSnap]?
+        /// the layout-and-discard view (contractor's open hand + possible talon)
+        public var layout: [PlacedCard]?
+        /// current standings for the on-demand score peek
+        public var standings: ScoreSnap?
+        /// an agreement offer is pending: the table is frozen
+        public var offer: OfferSnap?
 
         public init(
             field: [PlacedCard],
@@ -71,7 +150,11 @@ public enum GameMsg {
             ask: Ask? = nil,
             badMove: Bool = false,
             ended: Bool = false,
-            scores: ScoreSnap? = nil
+            scores: ScoreSnap? = nil,
+            takes: [TakeSnap]? = nil,
+            layout: [PlacedCard]? = nil,
+            standings: ScoreSnap? = nil,
+            offer: OfferSnap? = nil
         ) {
             self.field = field
             self.info = info
@@ -80,6 +163,10 @@ public enum GameMsg {
             self.badMove = badMove
             self.ended = ended
             self.scores = scores
+            self.takes = takes
+            self.layout = layout
+            self.standings = standings
+            self.offer = offer
         }
     }
 
@@ -92,6 +179,10 @@ public enum GameMsg {
         public var discard: [Card]?
         public var play: Card?
         public var confirm: Bool?
+        /// propose an agreement: final trick counts, viewer-relative
+        public var offer: [Int]?
+        /// answer to a pending offer
+        public var agree: Bool?
 
         public init(
             bid: Game.Bid? = nil,
@@ -100,7 +191,9 @@ public enum GameMsg {
             opening: Bool? = nil,
             discard: [Card]? = nil,
             play: Card? = nil,
-            confirm: Bool? = nil
+            confirm: Bool? = nil,
+            offer: [Int]? = nil,
+            agree: Bool? = nil
         ) {
             self.bid = bid
             self.contract = contract
@@ -109,6 +202,8 @@ public enum GameMsg {
             self.discard = discard
             self.play = play
             self.confirm = confirm
+            self.offer = offer
+            self.agree = agree
         }
     }
 
@@ -120,9 +215,9 @@ extension GameMsg: Codable {
     private enum CodingKeys: String, CodingKey {
         case t
         // state
-        case field, info, yourTurn, ask, badMove, ended, scores
-        // act
-        case bid, contract, vist, opening, discard, play, confirm
+        case field, info, yourTurn, ask, badMove, ended, scores, takes, layout, standings
+        // act (offer/agree are shared with state's offer key)
+        case bid, contract, vist, opening, discard, play, confirm, offer, agree
     }
 
     public init(from decoder: Decoder) throws {
@@ -137,7 +232,11 @@ extension GameMsg: Codable {
                 ask: try c.decodeIfPresent(Ask.self, forKey: .ask),
                 badMove: try c.decodeIfPresent(Bool.self, forKey: .badMove) ?? false,
                 ended: try c.decodeIfPresent(Bool.self, forKey: .ended) ?? false,
-                scores: try c.decodeIfPresent(ScoreSnap.self, forKey: .scores)
+                scores: try c.decodeIfPresent(ScoreSnap.self, forKey: .scores),
+                takes: try c.decodeIfPresent([TakeSnap].self, forKey: .takes),
+                layout: try c.decodeIfPresent([PlacedCard].self, forKey: .layout),
+                standings: try c.decodeIfPresent(ScoreSnap.self, forKey: .standings),
+                offer: try c.decodeIfPresent(OfferSnap.self, forKey: .offer)
             ))
         case "act":
             self = .act(Act(
@@ -147,7 +246,9 @@ extension GameMsg: Codable {
                 opening: try c.decodeIfPresent(Bool.self, forKey: .opening),
                 discard: try c.decodeIfPresent([Card].self, forKey: .discard),
                 play: try c.decodeIfPresent(Card.self, forKey: .play),
-                confirm: try c.decodeIfPresent(Bool.self, forKey: .confirm)
+                confirm: try c.decodeIfPresent(Bool.self, forKey: .confirm),
+                offer: try c.decodeIfPresent([Int].self, forKey: .offer),
+                agree: try c.decodeIfPresent(Bool.self, forKey: .agree)
             ))
         default:
             throw PrefError("unknown game message type: \(t)")
@@ -166,6 +267,10 @@ extension GameMsg: Codable {
             try c.encode(s.badMove, forKey: .badMove)
             try c.encode(s.ended, forKey: .ended)
             try c.encodeIfPresent(s.scores, forKey: .scores)
+            try c.encodeIfPresent(s.takes, forKey: .takes)
+            try c.encodeIfPresent(s.layout, forKey: .layout)
+            try c.encodeIfPresent(s.standings, forKey: .standings)
+            try c.encodeIfPresent(s.offer, forKey: .offer)
         case .act(let a):
             try c.encode("act", forKey: .t)
             try c.encodeIfPresent(a.bid, forKey: .bid)
@@ -175,6 +280,8 @@ extension GameMsg: Codable {
             try c.encodeIfPresent(a.discard, forKey: .discard)
             try c.encodeIfPresent(a.play, forKey: .play)
             try c.encodeIfPresent(a.confirm, forKey: .confirm)
+            try c.encodeIfPresent(a.offer, forKey: .offer)
+            try c.encodeIfPresent(a.agree, forKey: .agree)
         }
     }
 }

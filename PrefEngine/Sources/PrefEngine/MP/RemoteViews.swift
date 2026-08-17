@@ -127,6 +127,58 @@ public enum RemoteViews {
         buildScoresFrom(game.calc, viewer)
     }
 
+    /// The deal's completed tricks from one viewer's perspective.
+    public static func buildTakesFor(_ game: Game, _ viewer: Int) -> [TakeSnap]? {
+        guard let ai = game.aIs[viewer] else { return nil }
+        if ai.outOfPlay.isEmpty { return nil }
+        return ai.outOfPlay.map { t in
+            TakeSnap(
+                first: t.firstMovePerformer,
+                taker: t.takenBy,
+                my: t.myMove,
+                prev: t.prevMove,
+                next: t.nextMove,
+                prikup: t.prikupMove
+            )
+        }
+    }
+
+    /// Port of computeField's layout-and-discard mode for one viewer: the
+    /// contractor's open hand together with the talon cards this viewer
+    /// cannot rule out. Nil when the view does not apply.
+    public static func buildLayoutFor(_ game: Game, _ viewer: Int) -> [PlacedCard]? {
+        if game.phase != .Playing && game.phase != .EndTurn { return nil }
+        if game.currentGameType != .Normal && game.currentGameType != .Miser { return nil }
+        let contractor = game.contractor
+        if contractor == viewer || !game.opening { return nil }
+        guard let ai = game.aIs[viewer] else { return nil }
+        let colorNotExists = contractor == (viewer + 1) % 3
+            ? ai.prevHand.colorNotExists
+            : ai.nextHand.colorNotExists
+        var res: [PlacedCard] = []
+        let deal = game.deal
+        for hand in 0..<3 {
+            if hand == contractor {
+                var list = deal.hands[hand].cards
+                for card in deal.prikup.cards where !colorNotExists.contains(card.coatColor) {
+                    list.append(card)
+                }
+                res.append(contentsOf: TableLayout.handPlacements(list, rot(hand, viewer), special: true, hidden: false))
+            } else {
+                let faceUp = hand == viewer || deal.hands[hand].isVisible
+                res.append(contentsOf: TableLayout.handPlacements(
+                    deal.hands[hand].cards, rot(hand, viewer), special: false, hidden: !faceUp
+                ))
+            }
+        }
+        for (key, card) in deal.inPlay.entries {
+            let relKey = key < 0 ? key : rot(key, viewer)
+            let (x, y) = TableLayout.inPlayCoords(relKey)
+            res.append(PlacedCard(card: card, hand: relKey, x: x, y: y, isInPlay: true))
+        }
+        return res
+    }
+
     /// What the current actor must answer, by phase.
     public static func buildAsk(_ game: Game) -> Ask {
         switch game.phase {

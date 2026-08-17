@@ -85,6 +85,24 @@ public final class Game: Codable {
         public init() {}
     }
 
+    /// «Без 3 (застрелиться)»: the declarer surrendered — the whists are
+    /// voided by the agreement, only the mountain is written. Transient.
+    public var agreedNoVists = false
+
+    /// Ends the deal by mutual agreement: `finalTaken` are the agreed final
+    /// trick counts per player. The deal jumps to the normal result screen,
+    /// so scoring, result text and the score view flow are unchanged.
+    public func applyAgreement(_ finalTaken: [Int: Int], noVists: Bool = false) {
+        for (p, t) in finalTaken where (0...2).contains(p) {
+            deal.hands[p].taken = t
+        }
+        deal.inPlay.removeAll()
+        agreedNoVists = noVists
+        phase = .EndPlay
+        playersToWait = 3
+        onProgress?()
+    }
+
     /// Transient.
     public var animations: [Animation] = []
 
@@ -220,6 +238,7 @@ public final class Game: Codable {
     public func newDeal() throws {
         curentBids = OrderedIntDict()
         isVister = OrderedIntDict()
+        agreedNoVists = false
         deal = Deal()
         deal.hands[0].isVisible = !externalDriver
         phase = .Negotiations
@@ -775,7 +794,7 @@ public final class Game: Codable {
         result.contractor = contractor
         result.dealer = calc.dealer
         result.multiplier = calc.currentRaspasyMultiplier
-        result.visters = isVister.entries.filter { $0.value }.map { $0.key }
+        result.visters = agreedNoVists ? [] : isVister.entries.filter { $0.value }.map { $0.key }
         result.taken = OrderedIntDict()
         for i in 0..<3 {
             let hand = deal.hands[i]

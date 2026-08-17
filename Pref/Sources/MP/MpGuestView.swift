@@ -10,6 +10,13 @@ final class GuestGameViewModel: ObservableObject {
     // one pulka file per guest session, overwritten on every save
     private let calcCreated = Int64(Date().timeIntervalSince1970 * 1000)
 
+    /// Auto-confirm everything until the deal's score sheet appears.
+    @Published var autoConfirmDeal = false
+    @Published var showLayout = false
+    @Published var showTakes = false
+    @Published var scorePeek = false
+    private var autoSaved = false
+
     func onState(_ s: GameMsg.State) {
         let prevKind = state?.ask?.kind
         state = s
@@ -18,6 +25,16 @@ final class GuestGameViewModel: ObservableObject {
         }
         if s.ask?.kind != "discard" {
             discardSel.removeAll()
+        }
+        if s.layout == nil { showLayout = false }
+        if s.takes == nil { showTakes = false }
+        if let scores = s.scores {
+            autoConfirmDeal = false // the score sheet waits for a real tap
+            scorePeek = false
+            if s.ended && !autoSaved {
+                autoSaved = true
+                _ = saveScoreSheet(scores)
+            }
         }
     }
 
@@ -45,6 +62,8 @@ struct MpGuestView: View {
     @ObservedObject var lobbyVm: LobbyViewModel
 
     @StateObject private var vm = GuestGameViewModel()
+    @State private var offerStep = 0
+    @State private var offerN = 0
     private let images = CardImages()
 
     private func act(_ a: GameMsg.Act) {
@@ -68,6 +87,11 @@ struct MpGuestView: View {
             lobbyVm.onHostState = { [weak vm] el in
                 if let msg = try? el.decode(GameMsg.self), case .state(let s) = msg {
                     vm?.onState(s)
+                    // player-side auto-confirm: everything except the score sheet
+                    if vm?.autoConfirmDeal == true && s.scores == nil
+                        && s.yourTurn && s.ask?.kind == "confirm" {
+                        act(GameMsg.Act(confirm: true))
+                    }
                 } else {
                     NSLog("PrefNet: bad game payload")
                 }
@@ -107,7 +131,8 @@ struct MpGuestView: View {
                 let strings = buildTableStrings(st.info, mp: true)
                 let hintText = st.badMove ? L("mp_bad_move") : (st.ended ? L("mp_game_over") : strings.hint)
 
-                ForEach(st.field) { pc in
+                let shownField = vm.showLayout ? (st.layout ?? st.field) : st.field
+                ForEach(shownField) { pc in
                     let selected = pc.card != nil && vm.discardSel.contains { $0.id == pc.card!.id }
                     Image(uiImage: images.get(pc.card))
                         .resizable()
@@ -233,6 +258,87 @@ struct MpGuestView: View {
                     askButtons(ask, kx: kx, ky: ky)
                 }
 
+                // bottom-left action buttons (parity with the host table)
+                VStack {
+                    Spacer()
+                    HStack(spacing: 6) {
+                        if st.takes != nil && st.info.showTricksBtn {
+                            Button { vm.showTakes = true } label: {
+                                Text(L("game_btn_tricks")).font(.system(size: 12)).foregroundColor(.white)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        if st.standings != nil && st.scores == nil {
+                            Button { vm.scorePeek = true } label: {
+                                Text(L("game_btn_score")).font(.system(size: 12)).foregroundColor(.white)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        Button { vm.autoConfirmDeal.toggle() } label: {
+                            Text(L("game_btn_auto"))
+                                .font(.system(size: 12))
+                                .foregroundColor(vm.autoConfirmDeal ? Theme.accentYellow : .white)
+                        }
+                        .buttonStyle(.bordered)
+                        if Agreements.canOffer(st.info) {
+                            Button { offerStep = 1 } label: {
+                                Text(L("game_btn_offer")).font(.system(size: 12)).foregroundColor(.white)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        Spacer()
+                    }
+                    .padding(6)
+                }
+
+                // layout-and-discard toggle sits where the host has it (top center)
+                if st.layout != nil {
+                    Button { vm.showLayout.toggle() } label: {
+                        Text(L(vm.showLayout ? "game_btn_hide_prikup" : "game_btn_show_prikup"))
+                            .font(.system(size: 11))
+                            .foregroundColor(.white)
+                    }
+                    .buttonStyle(.bordered)
+                    .offset(x: 192 * kx, y: 30 * ky)
+                }
+
+                // agreement offer menus + pending dialog (shared with the host table)
+                AgreementUi(
+                    info: st.info,
+                    offerStep: $offerStep,
+                    offerN: $offerN,
+                    onOffer: { taken in
+                        offerStep = 0
+                        act(GameMsg.Act(offer: taken))
+                    },
+                    pending: st.offer,
+                    onRespond: { agree in act(GameMsg.Act(agree: agree)) },
+                    kx: kx, ky: ky, tableW: tableW, tableH: tableH
+                )
+
+                // on-demand standings peek
+                if vm.scorePeek, st.scores == nil, let snap = st.standings {
+                    ScoreOverlay(
+                        snap: snap,
+                        onTap: { vm.scorePeek = false }
+                    )
+                    .frame(width: tableW, height: tableH)
+                }
+
+                // past tricks popup (same rules as the host: earlier tricks
+                // face-down until the deal's play is over)
+                if vm.showTakes, let takes = st.takes {
+                    GuestTakesPopup(
+                        takes: takes,
+                        names: [-1: st.info.names[1], 0: st.info.names[0], 1: st.info.names[2]],
+                        allFaceUp: st.info.phase == .EndPlay,
+                        images: images,
+                        onClose: { vm.showTakes = false }
+                    )
+                    .frame(width: 432 * kx, height: 500 * ky)
+                    .offset(x: 24 * kx, y: 18 * ky)
+                }
+
                 if st.ended {
                     VStack {
                         Spacer()
@@ -256,6 +362,67 @@ struct MpGuestView: View {
         .background(Theme.tableGreenDark)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+    }
+
+    private struct GuestTakesPopup: View {
+        let takes: [TakeSnap]
+        let names: [Int: String]
+        let allFaceUp: Bool
+        let images: CardImages
+        let onClose: () -> Void
+
+        var body: some View {
+            VStack(spacing: 8) {
+                HStack {
+                    Text(L("game_trick_led"))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                    Spacer()
+                        .frame(maxWidth: .infinity)
+                    Text(L("game_trick_took"))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                }
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(Array(takes.enumerated()), id: \.offset) { idx, take in
+                            // only the last trick may be reviewed until the deal ends
+                            let faceDown = !allFaceUp && idx < takes.count - 1
+                            HStack {
+                                Text(names[take.first] ?? "")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 12))
+                                    .frame(maxWidth: .infinity)
+                                HStack(spacing: 0) {
+                                    if let prikup = take.prikup {
+                                        Image(uiImage: images.get(faceDown ? nil : prikup))
+                                            .resizable().frame(width: 34, height: 47)
+                                    }
+                                    Image(uiImage: images.get(faceDown ? nil : take.next))
+                                        .resizable().frame(width: 34, height: 47)
+                                    Image(uiImage: images.get(faceDown ? nil : take.prev))
+                                        .resizable().frame(width: 34, height: 47)
+                                    Image(uiImage: images.get(faceDown ? nil : take.my))
+                                        .resizable().frame(width: 34, height: 47)
+                                }
+                                .frame(maxWidth: .infinity)
+                                Text(names[take.taker] ?? "")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 12))
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                    }
+                }
+                Button(action: onClose) {
+                    Text(L("game_btn_close"))
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(8)
+            .background(Color(red: 0, green: 0x9B / 255.0, blue: 0), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white, lineWidth: 1))
+        }
     }
 
     @ViewBuilder
