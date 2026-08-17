@@ -23,15 +23,15 @@ struct AboutView: View {
                 Text(L("about_f5")).padding(.leading, 16).padding(.top, 6)
 
                 Link(destination: URL(string: "https://preferansmaster.com/privacy")!) {
-                    Text("Privacy Policy: preferansmaster.com/privacy")
-                        .font(.system(size: 15))
+                    Text(L("about_privacy"))
+                        .font(.system(size: 17))
                         .underline()
                         .foregroundColor(Theme.accentGold)
                 }
                 .padding(.top, 24)
                 Link(destination: URL(string: "https://preferansmaster.com/support")!) {
-                    Text("Support: preferansmaster.com/support")
-                        .font(.system(size: 15))
+                    Text(L("about_support"))
+                        .font(.system(size: 17))
                         .underline()
                         .foregroundColor(Theme.accentGold)
                 }

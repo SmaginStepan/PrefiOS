@@ -103,9 +103,16 @@ public enum Agreements {
                 res[passer] = info.taken[passer]
                 res[w[0]] = 10 - declarerTakes - res[passer]
             case 2:
-                guard let s = split else { return res }
-                res[w[0]] = s.0
-                res[w[1]] = s.1
+                if let s = split {
+                    res[w[0]] = s.0
+                    res[w[1]] = s.1
+                } else {
+                    // no split chosen (the surrender path voids the whists
+                    // anyway): the second whister keeps their resolved
+                    // takes, the first absorbs the remainder
+                    res[w[1]] = info.taken[w[1]]
+                    res[w[0]] = 10 - declarerTakes - res[w[1]]
+                }
             default:
                 break
             }

@@ -472,6 +472,9 @@ final class GameViewModel: ObservableObject {
             _ = saveScoreSheet()
         }
         offerDialog = s?.offerSnapFor(0)
+        if let declined = s?.consumeDeclineNotice() {
+            transientHint = LF("offer_declined_fmt", declined)
+        }
         armAutoConfirm()
         autoAdvanceDeal()
     }

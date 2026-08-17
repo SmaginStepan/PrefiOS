@@ -602,6 +602,16 @@ struct AgreementUi: View {
     }
 
     var body: some View {
+        // the table can advance (another player's act) while a menu is open:
+        // close an overlay that no longer applies
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onChange(of: Agreements.canOffer(info)) { can in
+                if !can && offerStep != 0 {
+                    offerStep = 0
+                    offerN = 0
+                }
+            }
         if offerStep == 1 && Agreements.canOffer(info) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {

@@ -181,6 +181,16 @@ public final class HostGameSession {
         pendingOffer != nil
     }
 
+    /// Who declined the last offer; carried in the next broadcast and shown
+    /// as a hint on the host once consumed.
+    private var declineNotice: String?
+
+    public func consumeDeclineNotice() -> String? {
+        let n = declineNotice
+        declineNotice = nil
+        return n
+    }
+
     public func offerSnapFor(_ realSeat: Int) -> OfferSnap? {
         guard let o = pendingOffer else { return nil }
         let g = max(gameSeatOf(realSeat), 0)
@@ -273,7 +283,8 @@ public final class HostGameSession {
             let bg = gameSeatOf(r)
             let accepts = bg < 0 || Agreements.botAccepts(bg, game, takenGame)
             if !accepts {
-                broadcast() // declined: the table simply resumes
+                declineNotice = names[r]
+                broadcast() // declined: the table resumes with the notice
                 onLocalTurn()
                 return
             }
@@ -293,6 +304,7 @@ public final class HostGameSession {
         guard let o = pendingOffer, o.awaiting.contains(realSeat) else { return }
         if !agree {
             pendingOffer = nil // play resumes exactly where it was
+            declineNotice = names[realSeat]
             broadcast()
             onLocalTurn()
             return
@@ -546,7 +558,8 @@ public final class HostGameSession {
                         takes: RemoteViews.buildTakesFor(game, g),
                         layout: RemoteViews.buildLayoutFor(game, g),
                         standings: standings,
-                        offer: offerFor
+                        offer: offerFor,
+                        offerDeclined: declineNotice
                     )
                 )
             } else {
@@ -566,7 +579,8 @@ public final class HostGameSession {
                         scores: scoresFor,
                         takes: RemoteViews.buildTakesFor(game, 0),
                         standings: standings,
-                        offer: offerFor
+                        offer: offerFor,
+                        offerDeclined: declineNotice
                     )
                 )
             }

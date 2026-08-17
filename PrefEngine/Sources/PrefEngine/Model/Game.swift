@@ -86,7 +86,9 @@ public final class Game: Codable {
     }
 
     /// «Без 3 (застрелиться)»: the declarer surrendered — the whists are
-    /// voided by the agreement, only the mountain is written. Transient.
+    /// voided by the agreement, only the mountain is written. Serialized:
+    /// a save/restore across the surrender result screen must not silently
+    /// re-enable the whists.
     public var agreedNoVists = false
 
     /// Ends the deal by mutual agreement: `finalTaken` are the agreed final
@@ -116,10 +118,56 @@ public final class Game: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case deal, calc, phase, playerInTurn, contractor, contract, trump, currentGameType,
-             isVister, playersToWait, curentBids, maxBid, aIs, opening, firstMovePerformer, playerToTake
+             isVister, playersToWait, curentBids, maxBid, aIs, opening, firstMovePerformer, playerToTake,
+             agreedNoVists
     }
 
     public init() {}
+
+    // Lenient decode: a save from an older app version may miss newer keys
+    // (agreedNoVists); every field falls back to its default instead of
+    // failing the whole restore.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        deal = try c.decodeIfPresent(Deal.self, forKey: .deal) ?? Deal()
+        calc = try c.decodeIfPresent(Calculation.self, forKey: .calc) ?? Calculation()
+        phase = try c.decodeIfPresent(GamePhase.self, forKey: .phase) ?? .NotStarted
+        playerInTurn = try c.decodeIfPresent(Int.self, forKey: .playerInTurn) ?? 0
+        contractor = try c.decodeIfPresent(Int.self, forKey: .contractor) ?? 0
+        contract = try c.decodeIfPresent(Int.self, forKey: .contract) ?? 0
+        trump = try c.decodeIfPresent(Int.self, forKey: .trump) ?? 0
+        currentGameType = try c.decodeIfPresent(GameType.self, forKey: .currentGameType) ?? .Raspasy
+        isVister = try c.decodeIfPresent(OrderedIntDict<Bool>.self, forKey: .isVister) ?? OrderedIntDict()
+        playersToWait = try c.decodeIfPresent(Int.self, forKey: .playersToWait) ?? 0
+        curentBids = try c.decodeIfPresent(OrderedIntDict<Bid>.self, forKey: .curentBids) ?? OrderedIntDict()
+        maxBid = try c.decodeIfPresent(Bid.self, forKey: .maxBid)
+        aIs = try c.decodeIfPresent(OrderedIntDict<AIInfo>.self, forKey: .aIs) ?? OrderedIntDict()
+        opening = try c.decodeIfPresent(Bool.self, forKey: .opening) ?? false
+        firstMovePerformer = try c.decodeIfPresent(Int.self, forKey: .firstMovePerformer) ?? 0
+        playerToTake = try c.decodeIfPresent(Int.self, forKey: .playerToTake) ?? 0
+        agreedNoVists = try c.decodeIfPresent(Bool.self, forKey: .agreedNoVists) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(deal, forKey: .deal)
+        try c.encode(calc, forKey: .calc)
+        try c.encode(phase, forKey: .phase)
+        try c.encode(playerInTurn, forKey: .playerInTurn)
+        try c.encode(contractor, forKey: .contractor)
+        try c.encode(contract, forKey: .contract)
+        try c.encode(trump, forKey: .trump)
+        try c.encode(currentGameType, forKey: .currentGameType)
+        try c.encode(isVister, forKey: .isVister)
+        try c.encode(playersToWait, forKey: .playersToWait)
+        try c.encode(curentBids, forKey: .curentBids)
+        try c.encodeIfPresent(maxBid, forKey: .maxBid)
+        try c.encode(aIs, forKey: .aIs)
+        try c.encode(opening, forKey: .opening)
+        try c.encode(firstMovePerformer, forKey: .firstMovePerformer)
+        try c.encode(playerToTake, forKey: .playerToTake)
+        try c.encode(agreedNoVists, forKey: .agreedNoVists)
+    }
 
     // MARK: - Очерёдность игроков и определение ИИ
 

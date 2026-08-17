@@ -142,6 +142,8 @@ public enum GameMsg {
         public var standings: ScoreSnap?
         /// an agreement offer is pending: the table is frozen
         public var offer: OfferSnap?
+        /// name of the player who just declined an offer (one broadcast only)
+        public var offerDeclined: String?
 
         public init(
             field: [PlacedCard],
@@ -154,7 +156,8 @@ public enum GameMsg {
             takes: [TakeSnap]? = nil,
             layout: [PlacedCard]? = nil,
             standings: ScoreSnap? = nil,
-            offer: OfferSnap? = nil
+            offer: OfferSnap? = nil,
+            offerDeclined: String? = nil
         ) {
             self.field = field
             self.info = info
@@ -167,6 +170,7 @@ public enum GameMsg {
             self.layout = layout
             self.standings = standings
             self.offer = offer
+            self.offerDeclined = offerDeclined
         }
     }
 
@@ -219,7 +223,7 @@ extension GameMsg: Codable {
     private enum CodingKeys: String, CodingKey {
         case t
         // state
-        case field, info, yourTurn, ask, badMove, ended, scores, takes, layout, standings
+        case field, info, yourTurn, ask, badMove, ended, scores, takes, layout, standings, offerDeclined
         // act (offer/agree are shared with state's offer key)
         case bid, contract, vist, opening, discard, play, confirm, offer, restMine, agree
     }
@@ -240,7 +244,8 @@ extension GameMsg: Codable {
                 takes: try c.decodeIfPresent([TakeSnap].self, forKey: .takes),
                 layout: try c.decodeIfPresent([PlacedCard].self, forKey: .layout),
                 standings: try c.decodeIfPresent(ScoreSnap.self, forKey: .standings),
-                offer: try c.decodeIfPresent(OfferSnap.self, forKey: .offer)
+                offer: try c.decodeIfPresent(OfferSnap.self, forKey: .offer),
+                offerDeclined: try c.decodeIfPresent(String.self, forKey: .offerDeclined)
             ))
         case "act":
             self = .act(Act(
@@ -276,6 +281,7 @@ extension GameMsg: Codable {
             try c.encodeIfPresent(s.layout, forKey: .layout)
             try c.encodeIfPresent(s.standings, forKey: .standings)
             try c.encodeIfPresent(s.offer, forKey: .offer)
+            try c.encodeIfPresent(s.offerDeclined, forKey: .offerDeclined)
         case .act(let a):
             try c.encode("act", forKey: .t)
             try c.encodeIfPresent(a.bid, forKey: .bid)

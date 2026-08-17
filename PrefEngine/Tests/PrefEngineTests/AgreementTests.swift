@@ -17,10 +17,17 @@ final class AgreementTests: XCTestCase {
     private func gameAtPlay() throws -> Game {
         let game = Game.create()
         game.externalDriver = true
+        return try driveToPlay(game)
+    }
+
+    /// trump 2 (diamonds) = one whister; trump 0 (spades) can trigger the
+    /// Stalingrad rule and auto-whist both opponents.
+    @discardableResult
+    private func driveToPlay(_ game: Game, trump: Int = 2) throws -> Game {
         try game.next()
         let bid6 = Game.Bid()
         bid6.contract = 6
-        bid6.trump = 2 // 6 diamonds: no Stalingrad auto-whist
+        bid6.trump = trump
         game.makeBid(bid6)
         try game.next()
         let pas1 = Game.Bid()
@@ -44,15 +51,16 @@ final class AgreementTests: XCTestCase {
         XCTAssertEqual(GamePhase.GameChoose, game.phase)
         let contractBid = Game.Bid()
         contractBid.contract = 6
-        contractBid.trump = 2
+        contractBid.trump = trump
         game.setContract(contractBid)
         try game.next()
-        XCTAssertEqual(GamePhase.VistNegotiations, game.phase)
-        game.setVist(true)
-        try game.next()
         if game.phase == .VistNegotiations {
-            game.setVist(false)
+            game.setVist(true)
             try game.next()
+            if game.phase == .VistNegotiations {
+                game.setVist(false)
+                try game.next()
+            }
         }
         if game.phase == .OpeningChoose {
             game.setOpeningChoice(false)
@@ -95,6 +103,67 @@ final class AgreementTests: XCTestCase {
         XCTAssertEqual(6, game.calc.scores[c].gora, "mountain for 3 undertricks")
         XCTAssertEqual(0, game.calc.scores[c].pulya, "no pulya")
         XCTAssertEqual(0, game.calc.scores[whister].visty[c] ?? 0, "whists voided")
+    }
+
+    func testSurrenderWorksWithTwoWhisters() throws {
+        // regression: buildTaken without a split (surrender skips step 2) used
+        // to return a partial distribution the host silently rejected
+        let calc = Calculation(playersCount: 3, limit: 10)
+        let names = ["P0", "P1", "P2"]
+        for i in 0..<3 {
+            calc.scores[i].name = names[i]
+        }
+        let session = HostGameSession(
+            seats: [SeatKind](repeating: .remote, count: 3),
+            names: names,
+            matchCalc: calc,
+            sendToSeat: { _, _ in },
+            onLocalTurn: {}
+        )
+        try driveToPlay(session.game, trump: 0) // Stalingrad: both opponents whist
+        let game = session.game
+        XCTAssertEqual(2, game.isVister.entries.filter { $0.value }.count)
+        let c = game.contractor
+        let info = RemoteViews.buildTableInfoFor(game, c)
+        let taken = Agreements.buildTaken(info, 3) // без 3, no split
+        XCTAssertEqual(10, taken.reduce(0, +), "distribution must always total ten")
+        try session.onRemoteAct(c, GameMsg.Act(offer: taken))
+        XCTAssertEqual(GamePhase.EndPlay, game.phase, "surrender applies unilaterally")
+        for seat in 0..<3 {
+            try session.confirmSeat(seat) // deal result
+        }
+        for seat in 0..<3 {
+            try session.confirmSeat(seat) // score sheet
+        }
+        XCTAssertEqual(6, calc.scores[c].gora, "mountain for 3 undertricks")
+        for w in game.isVister.entries.filter({ $0.value }).map({ $0.key }) {
+            XCTAssertEqual(0, calc.scores[w].visty[c] ?? 0, "whists voided for every whister")
+        }
+    }
+
+    func testSurrenderSurvivesSaveAndRestore() throws {
+        // regression: agreedNoVists was transient, so a save on the surrender
+        // result screen restored a deal that scored the whists again
+        let game = try gameAtPlay()
+        let c = game.contractor
+        let whister = game.isVister.entries.first { $0.value }!.key
+        let passer = (0...2).first { $0 != c && $0 != whister }!
+        game.applyAgreement([c: 3, whister: 7, passer: 0], noVists: true)
+        game.saveLast()
+        let restored = try XCTUnwrap(Game.loadLast())
+        restored.externalDriver = true
+        XCTAssertTrue(restored.agreedNoVists, "surrender flag must survive the save")
+        XCTAssertEqual(3, restored.deal.hands[c].taken, "trick counts must survive the save")
+        XCTAssertEqual(6, restored.contract, "contract must survive")
+        XCTAssertEqual(3, restored.playersToWait, "waiting confirms restored")
+        XCTAssertEqual(0, restored.calc.scores[c].gora, "no score written yet")
+        for _ in 0..<3 {
+            restored.endConfirm()
+            try restored.next()
+        }
+        XCTAssertEqual(GamePhase.ScoreView, restored.phase)
+        XCTAssertEqual(6, restored.calc.scores[c].gora, "mountain only")
+        XCTAssertEqual(0, restored.calc.scores[whister].visty[c] ?? 0, "whists stay voided")
     }
 
     func testRestMineEndsRaspasyUnilaterally() throws {

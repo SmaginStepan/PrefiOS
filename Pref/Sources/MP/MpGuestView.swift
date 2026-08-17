@@ -129,7 +129,12 @@ struct MpGuestView: View {
                     }
 
                 let strings = buildTableStrings(st.info, mp: true)
-                let hintText = st.badMove ? L("mp_bad_move") : (st.ended ? L("mp_game_over") : strings.hint)
+                let hintText: String = {
+                    if let declined = st.offerDeclined { return LF("offer_declined_fmt", declined) }
+                    if st.badMove { return L("mp_bad_move") }
+                    if st.ended { return L("mp_game_over") }
+                    return strings.hint
+                }()
 
                 let shownField = vm.showLayout ? (st.layout ?? st.field) : st.field
                 ForEach(shownField) { pc in
