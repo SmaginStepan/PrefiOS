@@ -82,6 +82,11 @@ public final class Game: Codable {
         public var bid: Bid?
         public var text: String?
 
+        /// Marker: the trick was closed and `player` collects it. Queued by the
+        /// hosted session when a trick closes without a confirm stop (the local
+        /// player was the mover), so the UI still animates the collection.
+        public var take: Bool = false
+
         public init() {}
     }
 

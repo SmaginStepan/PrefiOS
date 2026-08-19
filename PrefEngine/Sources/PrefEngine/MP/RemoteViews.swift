@@ -65,7 +65,8 @@ public enum RemoteViews {
         watching: Bool = false,
         sitOutName: String? = nil,
         waitingFor: [String] = [],
-        youConfirmed: Bool = false
+        youConfirmed: Bool = false,
+        bots: [Bool] = []
     ) -> TableInfo {
         func rotList<T>(_ src: [T]) -> [T] {
             (0..<3).map { rel in src[(rel + viewer) % 3] }
@@ -94,6 +95,7 @@ public enum RemoteViews {
         info.watching = watching
         info.sitOutName = sitOutName
         info.waitingFor = waitingFor
+        info.bots = bots.count == 3 ? rotList(bots) : bots
         info.youConfirmed = youConfirmed
         info.gameResult = game.phase == .EndPlay ? rotResult(game.getGameResult(), viewer) : nil
         info.showPrikupBtn1 = false
@@ -119,7 +121,8 @@ public enum RemoteViews {
             },
             limit: calc.limit,
             // at ScoreView calc.dealer already points at the next deal's dealer
-            dealer: (calc.dealer - viewer + n) % n
+            dealer: (calc.dealer - viewer + n) % n,
+            leningrad: calc.rules.scoring == .Leningrad
         )
     }
 

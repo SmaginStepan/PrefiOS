@@ -166,9 +166,14 @@ final class GameViewModel: ObservableObject {
             sendToSeat: sendToSeat,
             onLocalTurn: { [weak self] in
                 Task { @MainActor [weak self] in
-                    self?.syncHostedGame()
-                    self?.buildMenu()
-                    self?.refresh()
+                    guard let self = self else { return }
+                    // the act task that pumped the session refreshes after it
+                    // replays the animations; refreshing before that would
+                    // show the post-pump table under the pending animations
+                    if self.busy { return }
+                    self.syncHostedGame()
+                    self.buildMenu()
+                    self.refresh()
                 }
             }
         )
@@ -380,8 +385,17 @@ final class GameViewModel: ObservableObject {
 
     func toggleAutoConfirmDeal() {
         autoConfirmDeal.toggle()
+        notifyAutoMode(autoConfirmDeal)
         if autoConfirmDeal {
             autoAdvanceDeal()
+        }
+    }
+
+    /// Tell the session, so nobody is shown "waiting for" this player.
+    private func notifyAutoMode(_ on: Bool) {
+        guard let s = session else { return }
+        gameQueue.async {
+            s.setAutoMode(0, on)
         }
     }
 
@@ -389,6 +403,7 @@ final class GameViewModel: ObservableObject {
         guard let s = session, autoConfirmDeal else { return }
         if game.phase == .ScoreView || game.phase == .Ended {
             autoConfirmDeal = false // the score sheet waits for a real tap
+            notifyAutoMode(false)
             return
         }
         if busy { return }
@@ -420,6 +435,7 @@ final class GameViewModel: ObservableObject {
         info.watching = session?.hostActive == false
         info.sitOutName = session?.sitOutName
         info.waitingFor = session?.waitingNames() ?? []
+        info.bots = session.map { s in (0..<3).map { s.botAt($0) } } ?? []
         info.youConfirmed = session?.hasConfirmed(0) == true
         info.gameResult = game.phase == .EndPlay ? game.getGameResult() : nil
         info.showPrikupBtn1 = (game.phase == .Playing || game.phase == .EndTurn)
@@ -487,7 +503,8 @@ final class GameViewModel: ObservableObject {
     private func armAutoConfirm() {
         guard let s = session else { return }
         if autoConfirmSec <= 0 { return }
-        if !s.atConfirmStop {
+        // the between-deals pulka sheet always waits for real taps
+        if !s.atConfirmStop || game.phase == .ScoreView {
             autoTask?.cancel()
             autoTask = nil
             autoArmedKey = -1
@@ -501,6 +518,7 @@ final class GameViewModel: ObservableObject {
         autoTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
             guard !Task.isCancelled, let self = self, let s = self.session else { return }
+            self.busy = true
             let anims: [Game.Animation] = await withCheckedContinuation { (continuation: CheckedContinuation<[Game.Animation], Never>) in
                 self.gameQueue.async {
                     if s.stopKey == key && s.atConfirmStop {
@@ -516,11 +534,8 @@ final class GameViewModel: ObservableObject {
                 }
             }
             self.syncHostedGame()
-            if !anims.isEmpty {
-                self.busy = true
-                await self.processAnimations(queue: anims)
-                self.busy = false
-            }
+            await self.processAnimations(queue: anims)
+            self.busy = false
             self.buildMenu()
             self.refresh()
         }
@@ -637,6 +652,26 @@ final class GameViewModel: ObservableObject {
         while true {
             guard !pending.isEmpty else { break }
             let a = pending.removeFirst()
+            if a.take {
+                // a trick closed without a confirm stop: collect what is still
+                // lying on the table toward the taker (skip if already clean);
+                // never touch cards of the trick currently in play — a refresh
+                // may already have drawn the next trick under this replay
+                let current = Set(game.deal.inPlay.entries.map { $0.value.id })
+                let lying = (field.filter { $0.isInPlay && $0.card != nil } +
+                    pinnedOverlays.filter { $0.isInPlay && $0.card != nil })
+                    .filter { !current.contains($0.card!.id) }
+                if !lying.isEmpty {
+                    let (tx, ty) = TableLayout.outOfPlayCoords(a.player)
+                    let ids = Set(lying.map { $0.card!.id })
+                    field = field.filter { !($0.isInPlay && $0.card.map { ids.contains($0.id) } == true) }
+                    pinnedOverlays.removeAll { $0.isInPlay && $0.card.map { ids.contains($0.id) } == true }
+                    trickAnim = TrickAnim(cards: lying, toX: tx, toY: ty)
+                    await runAnim()
+                    trickAnim = nil
+                }
+                continue
+            }
             if let card = a.card {
                 let from = field.first { $0.hand == a.player && $0.card?.id == card.id }
                 let (fx, fy) = from.map { ($0.x, $0.y) } ?? TableLayout.hiddenStartCoords(a.player)

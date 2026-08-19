@@ -812,19 +812,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Auto"
+            "value": "Auto\nconfirm"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Auto"
+            "value": "Auto\nconfirmar"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Авто"
+            "value": "Авто\nподтв."
           }
         }
       }
@@ -1065,19 +1065,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Score"
+            "value": "Score…"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pulka"
+            "value": "Pulka…"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Пуля"
+            "value": "Пуля…"
           }
         }
       }
@@ -3526,19 +3526,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Finish…"
+            "value": "Finish"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Terminar…"
+            "value": "Terminar"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Завершить…"
+            "value": "Завершить"
           }
         }
       }
@@ -3838,6 +3838,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Принять"
+          }
+        }
+      }
+    },
+    "offer_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отмена"
           }
         }
       }

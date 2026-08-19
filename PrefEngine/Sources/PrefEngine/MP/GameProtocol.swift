@@ -28,18 +28,21 @@ public struct ScoreSnap: Codable {
     public var limit: Int
     /// who deals the next deal (viewer-relative); lets a guest save a resumable pulka
     public var dealer: Int
+    /// Leningrad scoring doubles the pool conversion in the final settlement
+    public var leningrad: Bool
 
-    public init(names: [String], pulya: [Int], gora: [Int], visty: [[Int]], limit: Int, dealer: Int = 0) {
+    public init(names: [String], pulya: [Int], gora: [Int], visty: [[Int]], limit: Int, dealer: Int = 0, leningrad: Bool = false) {
         self.names = names
         self.pulya = pulya
         self.gora = gora
         self.visty = visty
         self.limit = limit
         self.dealer = dealer
+        self.leningrad = leningrad
     }
 
     private enum CodingKeys: String, CodingKey {
-        case names, pulya, gora, visty, limit, dealer
+        case names, pulya, gora, visty, limit, dealer, leningrad
     }
 
     public init(from decoder: Decoder) throws {
@@ -50,6 +53,7 @@ public struct ScoreSnap: Codable {
         visty = try c.decodeIfPresent([[Int]].self, forKey: .visty) ?? []
         limit = try c.decode(Int.self, forKey: .limit)
         dealer = try c.decodeIfPresent(Int.self, forKey: .dealer) ?? 0
+        leningrad = try c.decodeIfPresent(Bool.self, forKey: .leningrad) ?? false
     }
 }
 
@@ -189,6 +193,8 @@ public enum GameMsg {
         public var restMine: Bool?
         /// answer to a pending offer
         public var agree: Bool?
+        /// the player switched client-side auto-confirm on/off
+        public var autoMode: Bool?
 
         public init(
             bid: Game.Bid? = nil,
@@ -200,7 +206,8 @@ public enum GameMsg {
             confirm: Bool? = nil,
             offer: [Int]? = nil,
             restMine: Bool? = nil,
-            agree: Bool? = nil
+            agree: Bool? = nil,
+            autoMode: Bool? = nil
         ) {
             self.bid = bid
             self.contract = contract
@@ -212,6 +219,7 @@ public enum GameMsg {
             self.offer = offer
             self.restMine = restMine
             self.agree = agree
+            self.autoMode = autoMode
         }
     }
 
@@ -225,7 +233,7 @@ extension GameMsg: Codable {
         // state
         case field, info, yourTurn, ask, badMove, ended, scores, takes, layout, standings, offerDeclined
         // act (offer/agree are shared with state's offer key)
-        case bid, contract, vist, opening, discard, play, confirm, offer, restMine, agree
+        case bid, contract, vist, opening, discard, play, confirm, offer, restMine, agree, autoMode
     }
 
     public init(from decoder: Decoder) throws {
@@ -258,7 +266,8 @@ extension GameMsg: Codable {
                 confirm: try c.decodeIfPresent(Bool.self, forKey: .confirm),
                 offer: try c.decodeIfPresent([Int].self, forKey: .offer),
                 restMine: try c.decodeIfPresent(Bool.self, forKey: .restMine),
-                agree: try c.decodeIfPresent(Bool.self, forKey: .agree)
+                agree: try c.decodeIfPresent(Bool.self, forKey: .agree),
+                autoMode: try c.decodeIfPresent(Bool.self, forKey: .autoMode)
             ))
         default:
             throw PrefError("unknown game message type: \(t)")
@@ -294,6 +303,7 @@ extension GameMsg: Codable {
             try c.encodeIfPresent(a.offer, forKey: .offer)
             try c.encodeIfPresent(a.restMine, forKey: .restMine)
             try c.encodeIfPresent(a.agree, forKey: .agree)
+            try c.encodeIfPresent(a.autoMode, forKey: .autoMode)
         }
     }
 }

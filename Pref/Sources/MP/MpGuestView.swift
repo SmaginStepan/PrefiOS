@@ -86,7 +86,13 @@ struct MpGuestView: View {
         .onAppear {
             lobbyVm.onHostState = { [weak vm] el in
                 if let msg = try? el.decode(GameMsg.self), case .state(let s) = msg {
+                    let wasAuto = vm?.autoConfirmDeal == true
                     vm?.onState(s)
+                    // auto-confirm switched itself off at the score sheet:
+                    // let the host show us in the waiting list again
+                    if wasAuto && vm?.autoConfirmDeal == false {
+                        act(GameMsg.Act(autoMode: false))
+                    }
                     // player-side auto-confirm: everything except the score sheet
                     if vm?.autoConfirmDeal == true && s.scores == nil
                         && s.yourTurn && s.ask?.kind == "confirm" {
@@ -244,7 +250,7 @@ struct MpGuestView: View {
                                     .foregroundColor(vm.selectedBid === bid ? Theme.accentYellow : .white)
                                     .font(.system(size: 20))
                                     .lineLimit(1)
-                                    .minimumScaleFactor(0.65)
+                                    .minimumScaleFactor(0.55)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(10)
                                     .contentShape(Rectangle())
@@ -263,9 +269,16 @@ struct MpGuestView: View {
                     askButtons(ask, kx: kx, ky: ky)
                 }
 
-                // bottom-left action buttons (parity with the host table)
-                VStack {
+                // bottom-left action buttons (parity with the host table); the
+                // offer button sits on its own line right above the row
+                VStack(alignment: .leading, spacing: 6) {
                     Spacer()
+                    if Agreements.canOffer(st.info) {
+                        Button { offerStep = 1 } label: {
+                            Text(L("game_btn_offer")).font(.system(size: 12)).foregroundColor(.white)
+                        }
+                        .buttonStyle(.bordered)
+                    }
                     HStack(spacing: 6) {
                         if st.takes != nil && st.info.showTricksBtn {
                             Button { vm.showTakes = true } label: {
@@ -279,22 +292,22 @@ struct MpGuestView: View {
                             }
                             .buttonStyle(.bordered)
                         }
-                        Button { vm.autoConfirmDeal.toggle() } label: {
+                        Button {
+                            vm.autoConfirmDeal.toggle()
+                            act(GameMsg.Act(autoMode: vm.autoConfirmDeal))
+                        } label: {
                             Text(L("game_btn_auto"))
                                 .font(.system(size: 12))
+                                .lineSpacing(-2)
+                                .multilineTextAlignment(.center)
                                 .foregroundColor(vm.autoConfirmDeal ? Theme.accentYellow : .white)
                         }
                         .buttonStyle(.bordered)
-                        if Agreements.canOffer(st.info) {
-                            Button { offerStep = 1 } label: {
-                                Text(L("game_btn_offer")).font(.system(size: 12)).foregroundColor(.white)
-                            }
-                            .buttonStyle(.bordered)
-                        }
                         Spacer()
                     }
-                    .padding(6)
                 }
+                .padding(6)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
 
                 // layout-and-discard toggle sits where the host has it (top center)
                 if st.layout != nil {
@@ -485,7 +498,7 @@ struct MpGuestView: View {
         }()
         if let (label, action) = btn1 {
             Button(action: action) {
-                Text(label).lineLimit(1).minimumScaleFactor(0.6).frame(width: 130 * kx)
+                Text(label).lineLimit(1).minimumScaleFactor(0.55).frame(width: 130 * kx)
             }
             .buttonStyle(.borderedProminent)
             .frame(width: 180 * kx, alignment: .center)
@@ -493,7 +506,7 @@ struct MpGuestView: View {
         }
         if let (label, enabled, action) = btn2 {
             Button(action: action) {
-                Text(label).lineLimit(1).minimumScaleFactor(0.6).frame(width: 130 * kx)
+                Text(label).lineLimit(1).minimumScaleFactor(0.55).frame(width: 130 * kx)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!enabled)

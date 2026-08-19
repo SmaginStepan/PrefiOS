@@ -29,8 +29,10 @@ func buildTableStrings(_ info: TableInfo, mp: Bool = false) -> TableStrings {
         return base
     }
     // In multiplayer, action hints belong only to the player who controls the
-    // turn; everyone else sees whose move the table is waiting for.
-    if mp && info.controller != 0 && info.phase != .Ended {
+    // turn; everyone else sees whose move the table is waiting for. Bots move
+    // by themselves — never announce waiting for one.
+    if mp && info.controller != 0 && info.phase != .Ended
+        && !(info.bots.indices.contains(info.controller) && info.bots[info.controller]) {
         base.hint = LF("mp_waiting_for", info.names[info.controller])
     }
     return base
@@ -390,9 +392,16 @@ struct GameView: View {
                     .offset(x: 192 * kx, y: 30 * ky)
                 }
 
-                // Bottom-left action buttons
-                VStack {
+                // Bottom-left action buttons; the offer button sits on its own
+                // line right above the row, below the hint bubble
+                VStack(alignment: .leading, spacing: 6) {
                     Spacer()
+                    if Agreements.canOffer(info) {
+                        Button { offerStep = 1 } label: {
+                            Text(L("game_btn_offer")).font(.system(size: 12)).foregroundColor(.white)
+                        }
+                        .buttonStyle(.bordered)
+                    }
                     HStack(spacing: 6) {
                         if !vm.hosted {
                             Button { vm.requestAdvice() } label: {
@@ -416,20 +425,17 @@ struct GameView: View {
                             Button { vm.toggleAutoConfirmDeal() } label: {
                                 Text(L("game_btn_auto"))
                                     .font(.system(size: 12))
+                                    .lineSpacing(-2)
+                                    .multilineTextAlignment(.center)
                                     .foregroundColor(vm.autoConfirmDeal ? Theme.accentYellow : .white)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                        if Agreements.canOffer(info) {
-                            Button { offerStep = 1 } label: {
-                                Text(L("game_btn_offer")).font(.system(size: 12)).foregroundColor(.white)
                             }
                             .buttonStyle(.bordered)
                         }
                         Spacer()
                     }
-                    .padding(6)
                 }
+                .padding(6)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
 
                 // agreement offer menus + pending dialog
                 AgreementUi(
@@ -539,7 +545,7 @@ struct GameView: View {
         }()
         if let label = btn1Label {
             Button { vm.onButton1() } label: {
-                Text(label).lineLimit(1).minimumScaleFactor(0.6).frame(width: 130 * kx)
+                Text(label).lineLimit(1).minimumScaleFactor(0.55).frame(width: 130 * kx)
             }
             .buttonStyle(.borderedProminent)
             .frame(width: 180 * kx, alignment: .center)
@@ -547,7 +553,7 @@ struct GameView: View {
         }
         if let label = btn2Label {
             Button { vm.onButton2() } label: {
-                Text(label).lineLimit(1).minimumScaleFactor(0.6).frame(width: 130 * kx)
+                Text(label).lineLimit(1).minimumScaleFactor(0.55).frame(width: 130 * kx)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!btn2Enabled)
@@ -573,6 +579,10 @@ struct AgreementUi: View {
     let tableW: Double
     let tableH: Double
 
+    // Int.min = nothing selected, -1 = «остальные мои»
+    @State private var selN = Int.min
+    @State private var selSplit: Int? = nil
+
     private var contract: Int {
         info.maxBid?.contract ?? 0
     }
@@ -585,25 +595,40 @@ struct AgreementUi: View {
         return LF("offer_down_fmt", contract - n, n)
     }
 
-    private func listRow(_ text: String, gold: Bool = false, action: @escaping () -> Void) -> some View {
+    private func listRow(_ text: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Text(text)
-            .foregroundColor(gold ? Theme.accentYellow : .white)
-            .font(.system(size: gold ? 16 : 18))
+            .foregroundColor(selected ? Theme.accentYellow : .white)
+            .font(.system(size: 18))
             .lineLimit(1)
-            .minimumScaleFactor(0.65)
+            .minimumScaleFactor(0.55)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
             .contentShape(Rectangle())
             .onTapGesture(perform: action)
     }
 
+    /// Confirm/cancel buttons at the declaring-button positions.
+    private func offerButton(_ label: String, enabled: Bool = true, y: Double, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label).lineLimit(1).minimumScaleFactor(0.55).frame(width: 130 * kx)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(!enabled)
+        .frame(width: 180 * kx, alignment: .center)
+        .offset(x: 142 * kx, y: y * ky)
+    }
+
     private var listBackground: some View {
         Color(red: 0x12 / 255.0, green: 0x3B / 255.0, blue: 0x16 / 255.0).opacity(0.6)
     }
 
+    private var listBorder: Color {
+        Color(red: 0x2E / 255.0, green: 0x7D / 255.0, blue: 0x32 / 255.0).opacity(0.6)
+    }
+
     var body: some View {
         // the table can advance (another player's act) while a menu is open:
-        // close an overlay that no longer applies
+        // close an overlay that no longer applies; selections reset per step
         Color.clear
             .frame(width: 0, height: 0)
             .onChange(of: Agreements.canOffer(info)) { can in
@@ -612,68 +637,120 @@ struct AgreementUi: View {
                     offerN = 0
                 }
             }
+            .onChange(of: offerStep) { _ in
+                selN = Int.min
+                selSplit = nil
+            }
+        // Like game declaring: tapping an option only selects it, and the two
+        // buttons under the menu confirm (send or go to the split step) or cancel.
         if offerStep == 1 && Agreements.canOffer(info) {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    if Agreements.restMineAvailable(info) {
-                        listRow(L("offer_rest_mine")) {
-                            offerStep = 0
-                            offerN = 0
-                            onRestMine()
-                        }
+            let options = Agreements.declarerOptions(info)
+            let restMine = Agreements.restMineAvailable(info)
+            if options.isEmpty {
+                // раcпасы: «остальные мои» is the only agreement — no list at all
+                if restMine {
+                    offerButton(L("offer_rest_mine"), y: 330) {
+                        offerStep = 0
+                        offerN = 0
+                        onRestMine()
                     }
-                    ForEach(Agreements.declarerOptions(info), id: \.self) { n in
-                        listRow(declarerLabel(n)) {
-                            let miser = info.currentGameType == .Miser
-                            let surrender = !miser && info.contractor == 0 && n == contract - 3
-                            if miser || surrender || Agreements.whisters(info).count != 2 {
-                                offerStep = 0
-                                offerN = 0
-                                onOffer(Agreements.buildTaken(info, n))
-                            } else {
-                                offerStep = 2
-                                offerN = n
-                            }
-                        }
-                    }
-                    listRow(L("close"), gold: true) {
+                    offerButton(L("offer_cancel"), y: 385) {
                         offerStep = 0
                         offerN = 0
                     }
                 }
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        if restMine {
+                            listRow(L("offer_rest_mine"), selected: selN == -1) {
+                                selN = -1
+                            }
+                        }
+                        ForEach(options, id: \.self) { n in
+                            listRow(declarerLabel(n), selected: selN == n) {
+                                selN = n
+                            }
+                        }
+                    }
+                }
+                .background(listBackground)
+                .border(listBorder, width: 1)
+                .frame(width: 203 * kx, height: 286 * ky)
+                .offset(x: 139 * kx, y: 37 * ky)
+                let chosen = selN != Int.min
+                offerButton(
+                    !chosen ? L("game_btn_not_selected")
+                        : (selN == -1 ? L("offer_rest_mine") : declarerLabel(selN)),
+                    enabled: chosen,
+                    y: 330
+                ) {
+                    let n = selN
+                    if n == -1 {
+                        offerStep = 0
+                        offerN = 0
+                        onRestMine()
+                    } else {
+                        let miser = info.currentGameType == .Miser
+                        let surrender = !miser && info.contractor == 0 && n == contract - 3
+                        if miser || surrender || Agreements.whisters(info).count != 2 {
+                            offerStep = 0
+                            offerN = 0
+                            onOffer(Agreements.buildTaken(info, n))
+                        } else {
+                            offerStep = 2
+                            offerN = n
+                        }
+                    }
+                }
+                offerButton(L("offer_cancel"), y: 385) {
+                    offerStep = 0
+                    offerN = 0
+                }
             }
-            .background(listBackground)
-            .border(Color(red: 0x2E / 255.0, green: 0x7D / 255.0, blue: 0x32 / 255.0).opacity(0.6), width: 1)
-            .frame(width: 203 * kx, height: 286 * ky)
-            .offset(x: 139 * kx, y: 37 * ky)
         }
         if offerStep == 2 {
             let w = Agreements.whisters(info)
+            let splits = Agreements.whistSplits(info, offerN)
+            let splitLabel: ((Int, Int)) -> String = { split in
+                "\(info.names[w[0]]) \(split.0) · \(info.names[w[1]]) \(split.1)"
+            }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     Text(declarerLabel(offerN))
                         .foregroundColor(Theme.accentYellow)
                         .font(.system(size: 16))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.55)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(10)
-                    ForEach(Array(Agreements.whistSplits(info, offerN).enumerated()), id: \.offset) { _, split in
-                        listRow("\(info.names[w[0]]) \(split.0) · \(info.names[w[1]]) \(split.1)") {
-                            let n = offerN
-                            offerStep = 0
-                            offerN = 0
-                            onOffer(Agreements.buildTaken(info, n, split: split))
+                    ForEach(Array(splits.enumerated()), id: \.offset) { idx, split in
+                        listRow(splitLabel(split), selected: selSplit == idx) {
+                            selSplit = idx
                         }
-                    }
-                    listRow(L("close"), gold: true) {
-                        offerStep = 1
-                        offerN = 0
                     }
                 }
             }
             .background(listBackground)
-            .border(Color(red: 0x2E / 255.0, green: 0x7D / 255.0, blue: 0x32 / 255.0).opacity(0.6), width: 1)
+            .border(listBorder, width: 1)
             .frame(width: 203 * kx, height: 286 * ky)
             .offset(x: 139 * kx, y: 37 * ky)
+            offerButton(
+                selSplit.flatMap { splits.indices.contains($0) ? splitLabel(splits[$0]) : nil }
+                    ?? L("game_btn_not_selected"),
+                enabled: selSplit.map { splits.indices.contains($0) } == true,
+                y: 330
+            ) {
+                guard let idx = selSplit, splits.indices.contains(idx) else { return }
+                let n = offerN
+                offerStep = 0
+                offerN = 0
+                onOffer(Agreements.buildTaken(info, n, split: splits[idx]))
+            }
+            offerButton(L("offer_cancel"), y: 385) {
+                offerStep = 1
+                offerN = 0
+            }
         }
 
         if let offer = pending {
@@ -737,7 +814,7 @@ private struct BidMenu: View {
                             .foregroundColor(selected ? Theme.accentYellow : .white)
                             .font(.system(size: 20))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.65)
+                            .minimumScaleFactor(0.55)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(10)
                             .contentShape(Rectangle())

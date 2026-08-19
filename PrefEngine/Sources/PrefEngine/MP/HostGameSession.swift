@@ -107,8 +107,30 @@ public final class HostGameSession {
     }
 
     /// Names of the humans everyone is waiting for at the current stop.
+    /// Players in auto-confirm mode confirm by themselves, so they are not
+    /// worth announcing.
     public func waitingNames() -> [String] {
-        atConfirmStop ? humanSeats().filter { !stopConfirmed.contains($0) }.map { names[$0] } : []
+        atConfirmStop
+            ? humanSeats().filter { !stopConfirmed.contains($0) && !autoSeats.contains($0) }.map { names[$0] }
+            : []
+    }
+
+    /// Whether the given engine seat is played by a bot this deal.
+    public func botAt(_ gameSeat: Int) -> Bool {
+        let real = dealMap.indices.contains(gameSeat) ? dealMap[gameSeat] : -1
+        return real >= 0 && real < seats.count && seats[real] == .bot
+    }
+
+    // Real seats whose player currently runs client-side auto-confirm; they
+    // confirm on their own moments later, so nobody is shown waiting for them.
+    private var autoSeats = Set<Int>()
+
+    public func setAutoMode(_ seat: Int, _ on: Bool) {
+        let changed = on ? autoSeats.insert(seat).inserted : autoSeats.remove(seat) != nil
+        if changed && atConfirmStop {
+            broadcast()
+            onLocalTurn()
+        }
     }
 
     /// A human confirmed the current stop (any order).
@@ -136,6 +158,12 @@ public final class HostGameSession {
                 try game.next()
             }
         case .EndTurn:
+            // let the host UI collect the trick even when no stop was shown
+            // (the host was the mover and every other seat is a bot)
+            let take = Game.Animation()
+            take.take = true
+            take.player = game.playerToTake
+            game.animations.append(take)
             while game.phase == .EndTurn {
                 game.turnClose()
                 try game.next()
@@ -548,7 +576,8 @@ public final class HostGameSession {
                         field: fieldFor,
                         info: RemoteViews.buildTableInfoFor(
                             game, g, sitOutName: sitOutName,
-                            waitingFor: waiting, youConfirmed: confirmed
+                            waitingFor: waiting, youConfirmed: confirmed,
+                            bots: (0..<3).map { botAt($0) }
                         ),
                         yourTurn: yourTurn,
                         ask: ask,
@@ -570,7 +599,8 @@ public final class HostGameSession {
                         field: RemoteViews.buildFieldFor(game, 0, spectator: true),
                         info: RemoteViews.buildTableInfoFor(
                             game, 0, watching: true, sitOutName: sitOutName,
-                            waitingFor: waiting, youConfirmed: confirmed
+                            waitingFor: waiting, youConfirmed: confirmed,
+                            bots: (0..<3).map { botAt($0) }
                         ),
                         yourTurn: yourTurn,
                         ask: ask,
@@ -605,6 +635,10 @@ public final class HostGameSession {
     public func onRemoteAct(_ seat: Int, _ act: GameMsg.Act) throws {
         guard seat >= 0, seat < seats.count, seats[seat] == .remote else { return }
         if matchEnded { return }
+        if let autoMode = act.autoMode {
+            setAutoMode(seat, autoMode)
+            return
+        }
         if act.confirm == true && confirmPhases.contains(game.phase) {
             try confirmSeat(seat)
             return

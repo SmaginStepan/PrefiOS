@@ -14,6 +14,16 @@ struct ScoreOverlay: View {
 
     @State private var saved = false
     @State private var savedForLimit = -1
+    @State private var showResults = false
+    // a stray second tap right after closing the results view must not fall
+    // through onto the sheet's tap-to-continue surface
+    @State private var tapShieldUntil = Date.distantPast
+
+    private func shieldedTap() {
+        if Date() >= tapShieldUntil {
+            onTap()
+        }
+    }
 
     var body: some View {
         let n = snap.names.count
@@ -68,23 +78,29 @@ struct ScoreOverlay: View {
                         .offset(x: label.x * kx, y: label.y * ky)
                 }
 
-                // Bottom action bar (compact)
+                // Bottom action bar: one centered row (like the single-player sheet)
                 VStack {
                     Spacer()
-                    HStack {
+                    HStack(spacing: 4) {
+                        Spacer()
                         Button(action: onTap) {
                             Text(L("sheet_continue")).font(.system(size: 11)).lineLimit(1)
                         }
                         .buttonStyle(.borderedProminent)
                         .frame(height: 30)
-                        Spacer()
+                        Button {
+                            showResults = true
+                        } label: {
+                            Text(L("sheet_score_btn")).font(.system(size: 11)).lineLimit(1).foregroundColor(.white)
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(height: 30)
                         if let onFinish = onFinish {
                             Button(action: onFinish) {
                                 Text(L("mp_save_finish")).font(.system(size: 11)).lineLimit(1).foregroundColor(.white)
                             }
                             .buttonStyle(.bordered)
                             .frame(height: 30)
-                            Spacer()
                         }
                         if let onSave = onSave {
                             Button {
@@ -97,15 +113,48 @@ struct ScoreOverlay: View {
                             .disabled(isSaved)
                             .frame(height: 30)
                         }
+                        Spacer()
                     }
                     .padding(4)
+                }
+
+                // the same final-settlement view the single-player sheet opens
+                if showResults {
+                    ZStack {
+                        Color(red: 0x10 / 255.0, green: 0x38 / 255.0, blue: 0x14 / 255.0)
+                            .contentShape(Rectangle())
+                            .onTapGesture { /* swallow taps so they don't hit the sheet below */ }
+                        CalcResultsView(calc: ScoreOverlay.snapToCalc(snap)) {
+                            showResults = false
+                            tapShieldUntil = Date().addingTimeInterval(0.4)
+                        }
+                    }
                 }
             }
         }
         .background(Color(red: 0x10 / 255.0, green: 0x38 / 255.0, blue: 0x14 / 255.0).opacity(0.95), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.accentGold, lineWidth: 1))
         .contentShape(Rectangle())
-        .onTapGesture { onTap() }
+        .onTapGesture { shieldedTap() }
+        .onChange(of: snapIdentity) { _ in showResults = false }
+    }
+
+    /// The snapshot as a throwaway Calculation, enough for the final settlement.
+    static func snapToCalc(_ snap: ScoreSnap) -> Calculation {
+        let n = snap.names.count
+        let c = Calculation(playersCount: n, limit: snap.limit)
+        if snap.leningrad {
+            c.rules.scoring = .Leningrad
+        }
+        for i in 0..<n {
+            c.scores[i].name = snap.names[i]
+            c.scores[i].pulya = snap.pulya[i]
+            c.scores[i].gora = snap.gora[i]
+            for j in 0..<n where i != j {
+                c.scores[i].visty[j] = snap.visty.indices.contains(i) ? snap.visty[i][j] : 0
+            }
+        }
+        return c
     }
 
     // "Saved" resets with each new snapshot (Android: remember(snap))

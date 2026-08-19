@@ -9,7 +9,12 @@ final class LobbyViewModel: ObservableObject {
 
     @Published private(set) var conn = ConnState.disconnected
     @Published private(set) var rooms: [RoomInfo] = []
-    @Published private(set) var currentRoom: RoomInfo?
+    @Published private(set) var currentRoom: RoomInfo? {
+        didSet { inRoomForDeinit = currentRoom != nil }
+    }
+
+    /// Mirror of `currentRoom != nil` readable from the nonisolated deinit.
+    private nonisolated(unsafe) var inRoomForDeinit = false
     @Published private(set) var mySeat: Int?
     @Published private(set) var started = false
 
@@ -243,6 +248,12 @@ final class LobbyViewModel: ObservableObject {
 
     deinit {
         keeperTask?.cancel()
+        // leaving the multiplayer section is deliberate: give up the seat so
+        // the server does not auto-rejoin us into the old room on the next
+        // visit (the disconnect grace is for accidental drops only)
+        if inRoomForDeinit {
+            client.send(.leave)
+        }
         client.disconnect()
     }
 }
