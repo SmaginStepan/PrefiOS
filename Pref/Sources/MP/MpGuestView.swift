@@ -38,6 +38,197 @@ final class GuestGameViewModel: ObservableObject {
         }
     }
 
+    // ---- snapshot-diff animations: the guest has no engine, so card flights,
+    // trick collection and say bubbles are reconstructed from consecutive
+    // host states ------------------------------------------------------------
+
+    /// The field being drawn while a transition animates; nil = state.field.
+    @Published private(set) var dispField: [PlacedCard]?
+    @Published private(set) var cardAnim: CardAnim?
+    @Published private(set) var trickAnim: TrickAnim?
+    @Published private(set) var say: SayEvent?
+    @Published private(set) var animProgress: Double = 0
+
+    /// Tricks already shown collected on this table (visual, not engine).
+    private var seenTricks = 0
+
+    // Incoming snapshots queue behind the running animation (sequential),
+    // so nothing is dropped or reordered.
+    private var stateQueue: [(GameMsg.State, (GameMsg.Act) -> Void)] = []
+    private var processingStates = false
+
+    func ingest(_ s: GameMsg.State, act: @escaping (GameMsg.Act) -> Void) {
+        stateQueue.append((s, act))
+        if processingStates { return }
+        processingStates = true
+        Task { @MainActor [weak self] in
+            while let self = self, !self.stateQueue.isEmpty {
+                let (s, act) = self.stateQueue.removeFirst()
+                let wasAuto = self.autoConfirmDeal
+                await self.applyState(s)
+                // auto-confirm switched itself off at the score sheet:
+                // let the host show us in the waiting list again
+                if wasAuto && !self.autoConfirmDeal {
+                    act(GameMsg.Act(autoMode: false))
+                }
+                // player-side auto-confirm: everything except the score sheet
+                if self.autoConfirmDeal && s.scores == nil
+                    && s.yourTurn && s.ask?.kind == "confirm" {
+                    act(GameMsg.Act(confirm: true))
+                }
+            }
+            self?.processingStates = false
+        }
+    }
+
+    private func runAnim(durationMs: Double = 360) async {
+        let start = Date()
+        animProgress = 0
+        while true {
+            let t = -start.timeIntervalSinceNow * 1000.0 / durationMs
+            if t >= 1 { break }
+            animProgress = t
+            try? await Task.sleep(nanoseconds: 16_000_000)
+        }
+        animProgress = 1
+    }
+
+    /// Applies a new state, first animating the difference from the last one.
+    func applyState(_ s: GameMsg.State) async {
+        if let prev = state {
+            await animateTransition(prev, s)
+            cardAnim = nil
+            trickAnim = nil
+            say = nil
+        }
+        onState(s)
+        dispField = nil
+    }
+
+    private func sayOut(_ e: SayEvent) async {
+        say = e
+        await runAnim(durationMs: 960)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        say = nil
+    }
+
+    private func animateTransition(_ prev: GameMsg.State, _ s: GameMsg.State) async {
+        let oldTricks = prev.info.taken.reduce(0, +)
+        let newTricks = s.info.taken.reduce(0, +)
+        // a fresh deal (or a whole game) replaced the table: just snap
+        if newTricks < oldTricks ||
+            (s.info.phase == .Negotiations && prev.info.phase != .Negotiations) {
+            seenTricks = 0
+            return
+        }
+        if showLayout || s.ended { return }
+
+        // bid and whist announcements; Bid has no structural equality, so
+        // compare by value or every snapshot would replay old announcements
+        func sameBid(_ a: Game.Bid?, _ b: Game.Bid?) -> Bool {
+            if a == nil && b == nil { return true }
+            guard let a = a, let b = b else { return false }
+            return a.pas == b.pas && a.miser == b.miser
+                && a.contract == b.contract && a.trump == b.trump
+        }
+        for p in 0...2 {
+            if let nb = s.info.curentBids[p], !sameBid(nb, prev.info.curentBids[p]) {
+                await sayOut(SayEvent(player: p, bid: nb, text: nil))
+            }
+        }
+        for p in 0...2 {
+            if let nv = s.info.isVister[p], nv != prev.info.isVister[p] {
+                await sayOut(SayEvent(player: p, bid: nil, text: L(nv ? "game_say_whist" : "game_say_pass")))
+            }
+        }
+
+        var field = prev.field
+        func lying() -> [PlacedCard] {
+            field.filter { $0.isInPlay && $0.card != nil }
+        }
+
+        func flyCard(_ hand: Int, _ card: Card, _ tx: Double, _ ty: Double) async {
+            let from = field.first { !$0.isInPlay && $0.card?.id == card.id }
+                ?? field.first { !$0.isInPlay && $0.card == nil && $0.hand == hand }
+            let (fx, fy) = from.map { ($0.x, $0.y) } ?? TableLayout.hiddenStartCoords(hand)
+            if let from = from {
+                field = field.filter { $0 != from }
+            }
+            dispField = field
+            cardAnim = CardAnim(card: card, fromX: fx, fromY: fy, toX: tx, toY: ty)
+            await runAnim()
+            cardAnim = nil
+            field.append(PlacedCard(card: card, hand: hand, x: tx, y: ty, isInPlay: true))
+            dispField = field
+        }
+
+        func collect(_ taker: Int) async {
+            let cards = lying()
+            if cards.isEmpty { return }
+            let (tx, ty) = TableLayout.outOfPlayCoords(taker)
+            field = field.filter { !$0.isInPlay }
+            dispField = field
+            trickAnim = TrickAnim(cards: cards, toX: tx, toY: ty)
+            await runAnim()
+            trickAnim = nil
+        }
+
+        // -1/0/1 seat codes of TakeSnap -> viewer-relative hands 1/0/2
+        func handOf(_ code: Int) -> Int {
+            switch code {
+            case -1: return 1
+            case 1: return 2
+            default: return 0
+            }
+        }
+
+        func cardOf(_ t: TakeSnap, _ hand: Int) -> Card? {
+            switch hand {
+            case 1: return t.prev
+            case 2: return t.next
+            default: return t.my
+            }
+        }
+
+        if seenTricks > newTricks { seenTricks = newTricks } // safety after resync
+
+        // tricks completed since the last state: finish their plays, collect
+        if newTricks > seenTricks, let takes = s.takes, takes.count >= newTricks {
+            for t in seenTricks..<newTricks {
+                let take = takes[t]
+                let lead = handOf(take.first)
+                for i in 0...2 {
+                    let h = (lead + i) % 3
+                    guard let card = cardOf(take, h) else { continue }
+                    if lying().contains(where: { $0.card!.id == card.id }) { continue }
+                    let (tx, ty) = TableLayout.inPlayCoords(h)
+                    await flyCard(h, card, tx, ty)
+                }
+                await collect(handOf(take.taker))
+            }
+            seenTricks = newTricks
+        }
+
+        let targetLying = s.field.filter { $0.isInPlay && $0.card != nil }
+
+        // this viewer confirmed the finished trick: the host hides it from
+        // their next snapshot before the engine counts it — collect it now
+        if targetLying.isEmpty && !lying().isEmpty
+            && newTricks == oldTricks && seenTricks == newTricks
+            && s.info.phase == .EndTurn {
+            await collect(s.info.playerToTake)
+            seenTricks = newTricks + 1
+        }
+
+        // cards newly played into the current trick
+        let added = targetLying
+            .filter { n in !lying().contains { $0.card!.id == n.card!.id } }
+            .sorted { (($0.hand - prev.info.controller + 3) % 3) < (($1.hand - prev.info.controller + 3) % 3) }
+        for pc in added {
+            await flyCard(pc.hand, pc.card!, pc.x, pc.y)
+        }
+    }
+
     /// Save the host's score snapshot as a regular pulka file (guest view: self = player 0).
     func saveScoreSheet(_ snap: ScoreSnap) -> Bool {
         let n = snap.names.count
@@ -86,18 +277,8 @@ struct MpGuestView: View {
         .onAppear {
             lobbyVm.onHostState = { [weak vm] el in
                 if let msg = try? el.decode(GameMsg.self), case .state(let s) = msg {
-                    let wasAuto = vm?.autoConfirmDeal == true
-                    vm?.onState(s)
-                    // auto-confirm switched itself off at the score sheet:
-                    // let the host show us in the waiting list again
-                    if wasAuto && vm?.autoConfirmDeal == false {
-                        act(GameMsg.Act(autoMode: false))
-                    }
-                    // player-side auto-confirm: everything except the score sheet
-                    if vm?.autoConfirmDeal == true && s.scores == nil
-                        && s.yourTurn && s.ask?.kind == "confirm" {
-                        act(GameMsg.Act(confirm: true))
-                    }
+                    // queued: each state animates its diff before the next applies
+                    vm?.ingest(s) { a in act(a) }
                 } else {
                     NSLog("PrefNet: bad game payload")
                 }
@@ -142,7 +323,7 @@ struct MpGuestView: View {
                     return strings.hint
                 }()
 
-                let shownField = vm.showLayout ? (st.layout ?? st.field) : st.field
+                let shownField = vm.showLayout ? (st.layout ?? st.field) : (vm.dispField ?? st.field)
                 ForEach(shownField) { pc in
                     let selected = pc.card != nil && vm.discardSel.contains { $0.id == pc.card!.id }
                     Image(uiImage: images.get(pc.card))
@@ -170,6 +351,31 @@ struct MpGuestView: View {
                                 break
                             }
                         }
+                }
+
+                // flying card (reconstructed from the snapshot diff)
+                if let anim = vm.cardAnim {
+                    let t = vm.animProgress
+                    let x = anim.fromX + (anim.toX - anim.fromX) * t
+                    let y = anim.fromY + (anim.toY - anim.fromY) * t
+                    Image(uiImage: images.get(anim.card))
+                        .resizable()
+                        .frame(width: cardW, height: cardH)
+                        .offset(x: x * kx, y: y * ky)
+                }
+
+                // trick collection (cards fly to the taker and shrink)
+                if let anim = vm.trickAnim {
+                    let t = vm.animProgress
+                    let s = max(1.0 - t, 0.001)
+                    ForEach(anim.cards) { pc in
+                        let x = pc.x + (anim.toX - pc.x) * t
+                        let y = pc.y + (anim.toY - pc.y) * t
+                        Image(uiImage: images.get(pc.card))
+                            .resizable()
+                            .frame(width: max(cardW * s, 1), height: max(cardH * s, 1))
+                            .offset(x: x * kx, y: y * ky)
+                    }
                 }
 
                 Text(strings.p1)
@@ -240,21 +446,30 @@ struct MpGuestView: View {
                         }
                 }
 
-                // bid / contract menu
+                // bid / contract menu; opens scrolled to the bottom, where the
+                // lowest bids and Misère sit (same as the host menu)
                 if let ask = ask, ask.kind == "bid" || ask.kind == "contract", let bids = ask.bids, !bids.isEmpty {
                     let choices = Array(bids.filter { !$0.pas }.reversed())
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(choices.enumerated()), id: \.offset) { _, bid in
-                                Text(GameTexts.bidTitle(bid))
-                                    .foregroundColor(vm.selectedBid === bid ? Theme.accentYellow : .white)
-                                    .font(.system(size: 20))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.55)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(10)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture { vm.selectedBid = bid }
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 0) {
+                                ForEach(Array(choices.enumerated()), id: \.offset) { idx, bid in
+                                    Text(GameTexts.bidTitle(bid))
+                                        .foregroundColor(vm.selectedBid === bid ? Theme.accentYellow : .white)
+                                        .font(.system(size: 20))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.55)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(10)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture { vm.selectedBid = bid }
+                                        .id(idx)
+                                }
+                            }
+                        }
+                        .onAppear {
+                            if !choices.isEmpty {
+                                proxy.scrollTo(choices.count - 1, anchor: .bottom)
                             }
                         }
                     }
@@ -267,6 +482,29 @@ struct MpGuestView: View {
                 // ask buttons
                 if let ask = ask {
                     askButtons(ask, kx: kx, ky: ky)
+                }
+
+                // Say bubbles: the bid appears at the bidder's side, then grows
+                // while flying to the center of the table (same as the host)
+                if let say = vm.say {
+                    let t = vm.animProgress
+                    let move = 1 - (1 - t) * (1 - t) // ease-out for the flight
+                    let (sx, sy): (Double, Double) = {
+                        switch say.player {
+                        case 1: return (80.0, 95.0)    // left player
+                        case 2: return (400.0, 95.0)   // right player
+                        default: return (240.0, 600.0) // local player (bottom)
+                        }
+                    }()
+                    let cx = sx + (240.0 - sx) * move
+                    let cy = sy + (300.0 - sy) * move
+                    Text(GameTexts.sayText(say))
+                        .foregroundColor(Theme.accentYellow)
+                        .fontWeight(.bold)
+                        .font(.system(size: 15 + 19 * t))
+                        .lineLimit(1)
+                        .frame(width: 300 * kx, alignment: .center)
+                        .offset(x: (cx - 150.0) * kx, y: cy * ky)
                 }
 
                 // bottom-left action buttons (parity with the host table); the

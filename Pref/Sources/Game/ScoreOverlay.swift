@@ -1,9 +1,10 @@
 import SwiftUI
 import PrefEngine
 
-/// Between-deals score for multiplayer, drawn as the traditional pulka sheet
-/// (same 480x550 geometry as the score calculator, 3 or 4 players). Read-only;
-/// tap to continue. `onSave` writes the standing as a regular pulka file.
+/// Between-deals score for multiplayer, drawn exactly like the single-player
+/// score sheet: title, the sheet itself, and the action row underneath it.
+/// Read-only; tap the sheet (or Continue) to go on. `onSave` writes the
+/// standing as a regular pulka file, `onFinish` (host) ends the match.
 struct ScoreOverlay: View {
     let snap: ScoreSnap
     /// Writes the standing as a regular pulka file; returns success.
@@ -29,113 +30,129 @@ struct ScoreOverlay: View {
         let n = snap.names.count
         let cells = n == 4 ? CELLS_4 : CELLS_3
         let nameLabels = n == 4 ? NAMES_4 : NAMES_3
+        let arrows = n == 4 ? ARROWS_4 : ARROWS_3
         let lines = n == 4 ? LINES_4 : LINES_3
 
-        GeometryReader { geo in
-            let kx = geo.size.width / SHEET_W
-            let ky = geo.size.height / SHEET_H
+        ZStack {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(L(n == 4 ? "sheet4_title" : "sheet3_title"))
+                    .font(.system(size: 30))
+                    .foregroundColor(Theme.accentGold)
+                    .padding(.leading, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 4)
 
-            ZStack(alignment: .topLeading) {
-                Canvas { context, size in
-                    for l in lines {
-                        var path = Path()
-                        path.move(to: CGPoint(x: l.x1 * size.width, y: l.y1 * size.height))
-                        path.addLine(to: CGPoint(x: l.x2 * size.width, y: l.y2 * size.height))
-                        context.stroke(path, with: .color(.white), lineWidth: 2.5)
+                GeometryReader { geo in
+                    let kx = geo.size.width / SHEET_W
+                    let ky = geo.size.height / SHEET_H
+
+                    ZStack(alignment: .topLeading) {
+                        Canvas { context, size in
+                            for l in lines {
+                                var path = Path()
+                                path.move(to: CGPoint(x: l.x1 * size.width, y: l.y1 * size.height))
+                                path.addLine(to: CGPoint(x: l.x2 * size.width, y: l.y2 * size.height))
+                                context.stroke(path, with: .color(.white), lineWidth: 3)
+                            }
+                        }
+
+                        Text(String(snap.limit))
+                            .font(.system(size: 22))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .frame(width: 101 * kx, alignment: .center)
+                            .offset(x: 190 * kx, y: 253 * ky)
+
+                        ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
+                            let value: Int = {
+                                switch cell.type {
+                                case .Gora: return snap.gora[cell.player]
+                                case .Pulya: return snap.pulya[cell.player]
+                                case .Visty: return snap.visty[cell.player][cell.refPlayer]
+                                }
+                            }()
+                            Text(String(value))
+                                .font(.system(size: 19))
+                                .foregroundColor(.white)
+                                .lineLimit(1)
+                                .frame(width: cell.w * kx, alignment: .center)
+                                .offset(x: cell.x * kx, y: cell.y * ky)
+                        }
+
+                        ForEach(Array(nameLabels.enumerated()), id: \.offset) { _, label in
+                            Text(snap.names[label.player])
+                                .font(.system(size: 15))
+                                .foregroundColor(Theme.accentGold)
+                                .lineLimit(1)
+                                .frame(width: label.w * kx, alignment: label.align)
+                                .offset(x: label.x * kx, y: label.y * ky)
+                        }
+
+                        ForEach(Array(arrows.enumerated()), id: \.offset) { _, a in
+                            if snap.dealer == a.player {
+                                Text(a.up ? "▲" : "▼")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(Theme.accentGold)
+                                    .offset(x: a.x * kx, y: a.y * ky)
+                            }
+                        }
                     }
+                    .contentShape(Rectangle())
+                    .onTapGesture { shieldedTap() }
                 }
 
-                ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
-                    let value: Int = {
-                        switch cell.type {
-                        case .Gora: return snap.gora[cell.player]
-                        case .Pulya: return snap.pulya[cell.player]
-                        case .Visty: return snap.visty[cell.player][cell.refPlayer]
-                        }
-                    }()
-                    Text(String(value))
-                        .font(.system(size: 17))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .frame(width: cell.w * kx, alignment: .center)
-                        .offset(x: cell.x * kx, y: cell.y * ky)
-                }
-
-                Text(String(snap.limit))
-                    .font(.system(size: 20))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                    .frame(width: 101 * kx, alignment: .center)
-                    .offset(x: 190 * kx, y: 253 * ky)
-
-                ForEach(Array(nameLabels.enumerated()), id: \.offset) { _, label in
-                    let dealer = label.player == snap.dealer
-                    Text((dealer ? "▸ " : "") + snap.names[label.player])
-                        .font(.system(size: 13))
-                        .foregroundColor(Theme.accentGold)
-                        .lineLimit(1)
-                        .frame(width: label.w * kx, alignment: label.align)
-                        .offset(x: label.x * kx, y: label.y * ky)
-                }
-
-                // Bottom action bar: one centered row (like the single-player sheet)
-                VStack {
+                // action row under the sheet, like the single-player screen
+                HStack {
                     Spacer()
-                    HStack(spacing: 4) {
-                        Spacer()
-                        Button(action: onTap) {
-                            Text(L("sheet_continue")).font(.system(size: 11)).lineLimit(1)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .frame(height: 30)
-                        Button {
-                            showResults = true
-                        } label: {
-                            Text(L("sheet_score_btn")).font(.system(size: 11)).lineLimit(1).foregroundColor(.white)
+                    Button(action: shieldedTap) {
+                        Text(L("sheet_continue")).font(.system(size: 12)).lineLimit(1)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Spacer()
+                    Button {
+                        showResults = true
+                    } label: {
+                        Text(L("sheet_score_btn")).font(.system(size: 12)).lineLimit(1).foregroundColor(.white)
+                    }
+                    .buttonStyle(.bordered)
+                    Spacer()
+                    if let onFinish = onFinish {
+                        Button(action: onFinish) {
+                            Text(L("mp_save_finish")).font(.system(size: 12)).lineLimit(1).foregroundColor(.white)
                         }
                         .buttonStyle(.bordered)
-                        .frame(height: 30)
-                        if let onFinish = onFinish {
-                            Button(action: onFinish) {
-                                Text(L("mp_save_finish")).font(.system(size: 11)).lineLimit(1).foregroundColor(.white)
-                            }
-                            .buttonStyle(.bordered)
-                            .frame(height: 30)
-                        }
-                        if let onSave = onSave {
-                            Button {
-                                saved = onSave()
-                                savedForLimit = snapIdentity
-                            } label: {
-                                Text(L(saveLabelKey)).font(.system(size: 11)).lineLimit(1).foregroundColor(.white)
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(isSaved)
-                            .frame(height: 30)
-                        }
                         Spacer()
                     }
-                    .padding(4)
-                }
-
-                // the same final-settlement view the single-player sheet opens
-                if showResults {
-                    ZStack {
-                        Color(red: 0x10 / 255.0, green: 0x38 / 255.0, blue: 0x14 / 255.0)
-                            .contentShape(Rectangle())
-                            .onTapGesture { /* swallow taps so they don't hit the sheet below */ }
-                        CalcResultsView(calc: ScoreOverlay.snapToCalc(snap)) {
-                            showResults = false
-                            tapShieldUntil = Date().addingTimeInterval(0.4)
+                    if let onSave = onSave {
+                        Button {
+                            saved = onSave()
+                            savedForLimit = snapIdentity
+                        } label: {
+                            Text(L(saveLabelKey)).font(.system(size: 12)).lineLimit(1).foregroundColor(.white)
                         }
+                        .buttonStyle(.bordered)
+                        .disabled(isSaved)
+                        Spacer()
+                    }
+                }
+                .padding(8)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Theme.background)
+
+            // the same final-settlement view the single-player sheet opens
+            if showResults {
+                ZStack {
+                    Theme.background
+                        .contentShape(Rectangle())
+                        .onTapGesture { /* swallow taps so they don't hit the sheet below */ }
+                    CalcResultsView(calc: ScoreOverlay.snapToCalc(snap)) {
+                        showResults = false
+                        tapShieldUntil = Date().addingTimeInterval(0.4)
                     }
                 }
             }
         }
-        .background(Color(red: 0x10 / 255.0, green: 0x38 / 255.0, blue: 0x14 / 255.0).opacity(0.95), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.accentGold, lineWidth: 1))
-        .contentShape(Rectangle())
-        .onTapGesture { shieldedTap() }
         .onChange(of: snapIdentity) { _ in showResults = false }
     }
 
