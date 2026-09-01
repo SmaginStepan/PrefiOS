@@ -370,7 +370,7 @@ private struct CreateRoomSheet: View {
                             seats,
                             password,
                             preset,
-                            Int(limitText) ?? 10,
+                            AppSettings.clampLimit(Int(limitText) ?? 10),
                             autoConfirm
                         )
                     }

@@ -12,6 +12,10 @@ final class AppState: ObservableObject {
         PrefStorage.initialize(filesDir: filesDir)
         calc = Calculation.loadLast()
         game = Game.loadLast()
+        // scores finished offline reach the global board on the next launch
+        Task.detached(priority: .utility) {
+            await GlobalScores.flushPending()
+        }
     }
 
     func saveAll() {

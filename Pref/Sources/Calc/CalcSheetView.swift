@@ -401,7 +401,7 @@ struct CalcSheetView: View {
             calc.scores[i].name = setupNames[i]
         }
         if let limit = Int(setupLimit) {
-            calc.limit = limit
+            calc.limit = AppSettings.clampLimit(limit)
         }
     }
 

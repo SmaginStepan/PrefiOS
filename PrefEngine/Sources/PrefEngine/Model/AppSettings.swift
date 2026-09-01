@@ -59,14 +59,20 @@ public final class AppSettings {
     }
 
     public var limit: Int {
-        get { data.limit < 1 ? 40 : data.limit }
+        get { data.limit < 1 ? 40 : AppSettings.clampLimit(data.limit) }
         set {
-            if newValue < 1 {
-                return
-            }
-            data.limit = newValue
+            data.limit = AppSettings.clampLimit(newValue)
             save()
         }
+    }
+
+    // Pool limit bounds for new games and sheets (existing saved pulkas
+    // keep whatever limit they were created with).
+    public static let minLimit = 10
+    public static let maxLimit = 100
+
+    public static func clampLimit(_ value: Int) -> Int {
+        min(max(value, minLimit), maxLimit)
     }
 
     /// Persisted device UUID: the multiplayer identity and reconnect token.
