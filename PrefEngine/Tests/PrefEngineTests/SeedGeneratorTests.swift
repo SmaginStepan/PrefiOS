@@ -99,4 +99,48 @@ final class SeedGeneratorTests: XCTestCase {
             print("seeded \(lang): \(dir.path)")
         }
     }
+
+    /// A real all-pass single-player save at the FIRST trick review where the
+    /// taker is not the first hand (the case where the first hand, not the
+    /// taker, moves next). Run with PREF_ALLPASS_SEED_DIR=/path and copy
+    /// lastgame.json into the simulator app's Documents.
+    func testGenerateAllPassReviewSeed() throws {
+        guard let root = ProcessInfo.processInfo.environment["PREF_ALLPASS_SEED_DIR"] else {
+            throw XCTSkip("seed generator; run with PREF_ALLPASS_SEED_DIR=/path")
+        }
+        let dir = URL(fileURLWithPath: root)
+        try? FileManager.default.removeItem(at: dir)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        PrefStorage.initialize(filesDir: dir)
+
+        var saved = false
+        for _ in 0..<2000 where !saved {
+            let game = Game.create(ai1Name: "West", ai2Name: "East")
+            game.calc.scores[0].name = "Player"
+            try game.next()
+            var steps = 0
+            while game.phase != .Ended && steps < 3000 {
+                steps += 1
+                if game.phase == .EndTurn && game.currentGameType == .Raspasy
+                    && game.deal.totalTaken == 0 && game.playerToTake != game.getFirstPlayer() {
+                    game.saveLast()
+                    print("all-pass review seed: dealer=\(game.calc.dealer) first=\(game.getFirstPlayer()) taker=\(game.playerToTake) leader=\(game.leaderSeat())")
+                    saved = true
+                    break
+                }
+                if game.currentGameType != .Raspasy && game.phase == .Playing { break } // not all-pass
+                do {
+                    try AI.makeMove(game)
+                } catch {
+                    if game.phase == .Playing, let move = game.getAllowedMoves().first {
+                        game.playCard(move)
+                        try game.next()
+                    } else {
+                        break
+                    }
+                }
+            }
+        }
+        XCTAssertTrue(saved, "no all-pass review state found")
+    }
 }

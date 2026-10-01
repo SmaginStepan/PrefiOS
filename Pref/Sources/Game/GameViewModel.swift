@@ -431,6 +431,7 @@ final class GameViewModel: ObservableObject {
         info.maxBid = game.maxBid
         info.playerToTake = game.playerToTake
         info.playerInTurn = game.playerInTurn
+        info.leader = game.leaderSeat()
         info.controller = game.turnController()
         info.watching = session?.hostActive == false
         info.sitOutName = session?.sitOutName
@@ -461,6 +462,7 @@ final class GameViewModel: ObservableObject {
 
     /// Recompute all published render state from the (quiescent) game.
     private func refresh() {
+        turnMarker = nil
         showPrikupHand = nil
         if game.phase != .EndTurn || game.deal.totalTaken != trickCollectedAt {
             trickCollected = false
@@ -644,7 +646,13 @@ final class GameViewModel: ObservableObject {
         }
     }
 
+    /// Player whose move or announcement is animating; the ">" follows it
+    /// (bots resolve instantly in the engine, so by the time anything is
+    /// drawn its turn pointer is already back on the human).
+    @Published private(set) var turnMarker: Int?
+
     private func processAnimations(queue: [Game.Animation]? = nil) async {
+        defer { turnMarker = nil }
         var pending = queue ?? game.animations
         if queue == nil {
             game.animations.removeAll()
@@ -652,6 +660,11 @@ final class GameViewModel: ObservableObject {
         while true {
             guard !pending.isEmpty else { break }
             let a = pending.removeFirst()
+            // table-level animations (the all-pass talon card uses player -1,
+            // trick collection) change nothing
+            if !a.take {
+                turnMarker = (0...2).contains(a.player) ? a.player : nil
+            }
             if a.take {
                 // a trick closed without a confirm stop: collect what is still
                 // lying on the table toward the taker (skip if already clean);

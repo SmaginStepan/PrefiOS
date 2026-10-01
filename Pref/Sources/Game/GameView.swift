@@ -10,9 +10,40 @@ struct TableStrings {
     var result = ""
 }
 
+/// Private-use placeholder the player labels carry where the lead marker goes.
+let leadMark: Character = "\u{E000}"
+
+/// A tiny gold card back drawn as a shape (not an emoji — those differ on
+/// every device and turn to mush at this size): "this player leads the round".
+private let leadMarkerImage: Image = {
+    let size = CGSize(width: 10, height: 14)
+    let image = UIGraphicsImageRenderer(size: size).image { _ in
+        let rect = CGRect(x: 0.5, y: 1.5, width: 9, height: 11) // 1pt vertical padding
+        let path = UIBezierPath(roundedRect: rect, cornerRadius: 2)
+        UIColor(red: 0xD4 / 255.0, green: 0xAF / 255.0, blue: 0x37 / 255.0, alpha: 1).setFill()
+        path.fill()
+        UIColor(red: 0x8A / 255.0, green: 0x6D / 255.0, blue: 0x1A / 255.0, alpha: 1).setStroke()
+        path.lineWidth = 1
+        path.stroke()
+    }
+    return Image(uiImage: image)
+}()
+
+/// A player's name line (name, role, bid) with the lead marker drawn inline at
+/// the end, after a space. Follows the label's own alignment.
+func tableLabel(_ s: String) -> Text {
+    guard let at = s.firstIndex(of: leadMark) else { return Text(s) }
+    return Text(String(s[..<at]))
+        + Text(verbatim: " ")
+        + Text(leadMarkerImage).baselineOffset(-2)
+        + Text(String(s[s.index(after: at)...]))
+}
+
 /// Port of DrawField's text section. Shared with the multiplayer guest screen.
-func buildTableStrings(_ info: TableInfo, mp: Bool = false) -> TableStrings {
-    var base = buildTableStringsInner(info)
+/// `markerOverride` is the player whose move/announcement is animating; it
+/// moves the ">" marker on the name labels only (never the hint text).
+func buildTableStrings(_ info: TableInfo, mp: Bool = false, markerOverride: Int? = nil) -> TableStrings {
+    var base = buildTableStringsInner(info, markerOverride)
     // Confirmed the current stop: show who everyone is waiting for.
     if mp && info.youConfirmed && !info.waitingFor.isEmpty {
         base.hint = LF("mp_waiting_confirm", info.waitingFor.joined(separator: ", "))
@@ -38,11 +69,11 @@ func buildTableStrings(_ info: TableInfo, mp: Bool = false) -> TableStrings {
     return base
 }
 
-private func buildTableStringsInner(_ info: TableInfo) -> TableStrings {
+private func buildTableStringsInner(_ info: TableInfo, _ markerOverride: Int?) -> TableStrings {
     var s = TableStrings()
-    s.p0 = GameTexts.playerInfo(info, 0)
-    s.p1 = GameTexts.playerInfo(info, 1)
-    s.p2 = GameTexts.playerInfo(info, 2)
+    s.p0 = GameTexts.playerInfo(info, 0, markerOverride: markerOverride)
+    s.p1 = GameTexts.playerInfo(info, 1, markerOverride: markerOverride)
+    s.p2 = GameTexts.playerInfo(info, 2, markerOverride: markerOverride)
 
     func writeGameInfo() {
         s.p1 += ":\(info.taken[1])"
@@ -100,6 +131,10 @@ private func buildTableStringsInner(_ info: TableInfo) -> TableStrings {
     default:
         break
     }
+    // the lead marker is drawn inline where this placeholder sits (tableLabel)
+    if info.leader == 0 { s.p0.append(leadMark) }
+    if info.leader == 1 { s.p1.append(leadMark) }
+    if info.leader == 2 { s.p2.append(leadMark) }
     return s
 }
 
@@ -218,7 +253,7 @@ struct GameView: View {
                     .onTapGesture { vm.onCanvasTap() }
 
                 let info = vm.info
-                let strings = buildTableStrings(info, mp: vm.hosted)
+                let strings = buildTableStrings(info, mp: vm.hosted, markerOverride: vm.turnMarker)
                 let hintText = vm.transientHint ?? (vm.thinking ? L("game_thinking") : strings.hint)
 
                 // Cards on the table
@@ -256,17 +291,17 @@ struct GameView: View {
                 }
 
                 // Player labels
-                Text(strings.p1)
+                tableLabel(strings.p1)
                     .foregroundColor(.white)
                     .font(.system(size: 13))
                     .frame(width: 196 * kx, alignment: .leading)
                     .offset(x: 20 * kx, y: 10 * ky)
-                Text(strings.p2)
+                tableLabel(strings.p2)
                     .foregroundColor(.white)
                     .font(.system(size: 13))
                     .frame(width: 196 * kx, alignment: .trailing)
                     .offset(x: 266 * kx, y: 10 * ky)
-                Text(strings.p0)
+                tableLabel(strings.p0)
                     .foregroundColor(.white)
                     .font(.system(size: 13))
                     .frame(width: 285 * kx, alignment: .trailing)

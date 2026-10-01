@@ -73,6 +73,8 @@ public struct TableInfo: Codable {
     public var maxBid: Game.Bid?
     public var playerToTake: Int = 0
     public var playerInTurn: Int = 0
+    /// seat leading the current round (lead marker); -1 = none
+    public var leader: Int = -1
     /// who acts now; differs from playerInTurn when the whister moves for the passer
     public var controller: Int = 0
     /// the viewer sits out this deal (4-player: the dealer watches)
@@ -96,7 +98,7 @@ public struct TableInfo: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case phase, names, dealer, taken, currentGameType, contractor, isVister,
-             curentBids, maxBid, playerToTake, playerInTurn, controller, watching,
+             curentBids, maxBid, playerToTake, playerInTurn, leader, controller, watching,
              sitOutName, waitingFor, bots, youConfirmed, gameResult, showPrikupBtn1,
              showPrikupBtn2, showPrikupHideBtn, showTricksBtn
     }
@@ -114,6 +116,7 @@ public struct TableInfo: Codable {
         maxBid = try c.decodeIfPresent(Game.Bid.self, forKey: .maxBid)
         playerToTake = try c.decodeIfPresent(Int.self, forKey: .playerToTake) ?? 0
         playerInTurn = try c.decodeIfPresent(Int.self, forKey: .playerInTurn) ?? 0
+        leader = try c.decodeIfPresent(Int.self, forKey: .leader) ?? -1 // older hosts omit it
         controller = try c.decodeIfPresent(Int.self, forKey: .controller) ?? 0
         watching = try c.decodeIfPresent(Bool.self, forKey: .watching) ?? false
         sitOutName = try c.decodeIfPresent(String.self, forKey: .sitOutName)
@@ -125,6 +128,31 @@ public struct TableInfo: Codable {
         showPrikupBtn2 = try c.decodeIfPresent(Bool.self, forKey: .showPrikupBtn2) ?? false
         showPrikupHideBtn = try c.decodeIfPresent(Bool.self, forKey: .showPrikupHideBtn) ?? false
         showTricksBtn = try c.decodeIfPresent(Bool.self, forKey: .showTricksBtn) ?? false
+    }
+
+    /// The seat the ">" marker points at. `override` is the player whose move
+    /// or announcement is being animated right now (bots resolve instantly in
+    /// the engine, so the table replays their moves afterwards). Otherwise the
+    /// marker follows what happens next: the leader while a finished trick is
+    /// on view, the contractor at the opened talon, and nobody on the result
+    /// and score screens.
+    public func turnMarker(override: Int? = nil) -> Int {
+        if let o = override, (0...2).contains(o) {
+            return o
+        }
+        switch phase {
+        case .NotStarted, .Ended, .EndPlay, .ScoreView:
+            return -1
+        // whoever moves first after the review (the engine decides: the
+        // taker, or the first hand when a talon card opens the next trick);
+        // an older host sends no leader: fall back to the taker
+        case .EndTurn:
+            return leader >= 0 ? leader : playerToTake
+        case .PrikupOpened:
+            return contractor
+        default:
+            return playerInTurn
+        }
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -140,6 +168,7 @@ public struct TableInfo: Codable {
         try c.encodeIfPresent(maxBid, forKey: .maxBid)
         try c.encode(playerToTake, forKey: .playerToTake)
         try c.encode(playerInTurn, forKey: .playerInTurn)
+        try c.encode(leader, forKey: .leader)
         try c.encode(controller, forKey: .controller)
         try c.encode(watching, forKey: .watching)
         try c.encodeIfPresent(sitOutName, forKey: .sitOutName)

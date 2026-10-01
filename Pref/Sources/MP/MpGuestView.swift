@@ -49,6 +49,9 @@ final class GuestGameViewModel: ObservableObject {
     @Published private(set) var say: SayEvent?
     @Published private(set) var animProgress: Double = 0
 
+    /// Viewer-relative seat whose move/announcement is animating; the ">" follows it.
+    @Published private(set) var turnMarker: Int?
+
     /// Tricks already shown collected on this table (visual, not engine).
     private var seenTricks = 0
 
@@ -100,12 +103,14 @@ final class GuestGameViewModel: ObservableObject {
             cardAnim = nil
             trickAnim = nil
             say = nil
+            turnMarker = nil
         }
         onState(s)
         dispField = nil
     }
 
     private func sayOut(_ e: SayEvent) async {
+        turnMarker = e.player
         say = e
         await runAnim(durationMs: 960)
         try? await Task.sleep(nanoseconds: 300_000_000)
@@ -148,6 +153,7 @@ final class GuestGameViewModel: ObservableObject {
         }
 
         func flyCard(_ hand: Int, _ card: Card, _ tx: Double, _ ty: Double) async {
+            turnMarker = (0...2).contains(hand) ? hand : nil
             let from = field.first { !$0.isInPlay && $0.card?.id == card.id }
                 ?? field.first { !$0.isInPlay && $0.card == nil && $0.hand == hand }
             let (fx, fy) = from.map { ($0.x, $0.y) } ?? TableLayout.hiddenStartCoords(hand)
@@ -315,7 +321,7 @@ struct MpGuestView: View {
                         }
                     }
 
-                let strings = buildTableStrings(st.info, mp: true)
+                let strings = buildTableStrings(st.info, mp: true, markerOverride: vm.turnMarker)
                 let hintText: String = {
                     if let declined = st.offerDeclined { return LF("offer_declined_fmt", declined) }
                     if st.badMove { return L("mp_bad_move") }
@@ -378,15 +384,15 @@ struct MpGuestView: View {
                     }
                 }
 
-                Text(strings.p1)
+                tableLabel(strings.p1)
                     .foregroundColor(.white).font(.system(size: 13))
                     .frame(width: 196 * kx, alignment: .leading)
                     .offset(x: 20 * kx, y: 10 * ky)
-                Text(strings.p2)
+                tableLabel(strings.p2)
                     .foregroundColor(.white).font(.system(size: 13))
                     .frame(width: 196 * kx, alignment: .trailing)
                     .offset(x: 266 * kx, y: 10 * ky)
-                Text(strings.p0)
+                tableLabel(strings.p0)
                     .foregroundColor(.white).font(.system(size: 13))
                     .frame(width: 285 * kx, alignment: .trailing)
                     .offset(x: 177 * kx, y: 664 * ky)

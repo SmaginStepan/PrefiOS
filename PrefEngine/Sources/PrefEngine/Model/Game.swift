@@ -214,6 +214,33 @@ public final class Game: Codable {
         return num
     }
 
+    /// The seat that leads the current round, for the table's lead marker:
+    /// the first hand until play starts, then whoever led the trick being
+    /// played (or, between tricks, whoever takes the last one and leads next).
+    /// -1 on the result and score screens.
+    public func leaderSeat() -> Int {
+        switch phase {
+        case .Negotiations, .VistNegotiations, .PrikupOpened,
+             .Discarding, .GameChoose, .OpeningChoose:
+            return getFirstPlayer()
+        case .Playing:
+            return firstMovePerformer >= 0 ? firstMovePerformer : playerInTurn
+        case .EndTurn:
+            // the next trick opens a talon card in all-pass play, and then the
+            // first hand moves first no matter who took this trick (see
+            // raspasyPrikup)
+            return nextTrickOpensTalon() ? getFirstPlayer() : playerToTake
+        default:
+            return -1
+        }
+    }
+
+    /// The trick on view is not counted yet (turnNext counts it before
+    /// raspasyPrikup runs), so ask about the NEXT trick's count.
+    private func nextTrickOpensTalon() -> Bool {
+        currentGameType == .Raspasy && calc.rules.gameType != .Rostov && deal.totalTaken + 1 < 2
+    }
+
     public var isOpened: Bool {
         deal.hands.filter { $0.isVisible }.count > 1
     }

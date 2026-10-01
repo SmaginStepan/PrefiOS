@@ -91,6 +91,8 @@ public enum RemoteViews {
         info.maxBid = game.maxBid
         info.playerToTake = rot(game.playerToTake, viewer)
         info.playerInTurn = rot(game.playerInTurn, viewer)
+        let leader = game.leaderSeat()
+        info.leader = leader < 0 ? -1 : rot(leader, viewer)
         info.controller = rot(game.turnController(), viewer)
         info.watching = watching
         info.sitOutName = sitOutName
