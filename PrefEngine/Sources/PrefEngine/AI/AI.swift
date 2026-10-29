@@ -37,7 +37,7 @@ public enum AI {
             // Невозможно!!!
             break
         case .OpeningChoose:
-            if Int.random(in: 0..<10) < 9 {
+            if game.aiRandom.nextInt(10) < 9 {
                 game.setOpeningChoice(true)
             } else {
                 game.setOpeningChoice(false)
@@ -76,7 +76,7 @@ public enum AI {
         if game.currentGameType == .Miser {
             return try getCardsForMiserDiscard(info, game)
         } else {
-            return try getBestCardsForNormalDiscard(info, game.getAllowedBids())
+            return try getBestCardsForNormalDiscard(info, game.getAllowedBids(), game.aiRandom)
         }
     }
 
@@ -115,12 +115,12 @@ public enum AI {
                 }
             }
         default:
-            cardToPlay = allowedMoves[Int.random(in: 0..<allowedMoves.count)]
+            cardToPlay = allowedMoves[game.aiRandom.nextInt(allowedMoves.count)]
         }
         return cardToPlay
     }
 
-    private static func getBestCardsForNormalDiscard(_ info: AIInfo, _ bidsIn: [Game.Bid]) throws -> (Card, Card) {
+    private static func getBestCardsForNormalDiscard(_ info: AIInfo, _ bidsIn: [Game.Bid], _ rnd: PrefRandom) throws -> (Card, Card) {
         let bids = Array(bidsIn.drop(while: { $0.pas || $0.miser }).prefix(5))
         let hand = info.myHand.visibleHand!.clone()
         var max = -Double.greatestFiniteMagnitude
@@ -161,7 +161,7 @@ public enum AI {
         guard !list.isEmpty else {
             throw PrefError("Не найден сброс!")
         }
-        return list[Int.random(in: 0..<list.count)]
+        return list[rnd.nextInt(list.count)]
     }
 
     private static func getCardsForMiserDiscard(_ info: AIInfo, _ game: Game) throws -> (Card, Card) {
@@ -169,7 +169,7 @@ public enum AI {
             throw PrefError("Неверный рассчёт вероятностей")
         }
         let pSum = list.reduce(0.0) { $0 + $1.probability }
-        let pos = Double.random(in: 0..<1) * pSum
+        let pos = game.aiRandom.nextDouble() * pSum
         var cPos = 0.0
         for discard in list {
             cPos += discard.probability

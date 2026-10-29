@@ -124,7 +124,7 @@ public final class Game: Codable {
     private enum CodingKeys: String, CodingKey {
         case deal, calc, phase, playerInTurn, contractor, contract, trump, currentGameType,
              isVister, playersToWait, curentBids, maxBid, aIs, opening, firstMovePerformer, playerToTake,
-             agreedNoVists
+             agreedNoVists, seasonSeed, seasonDealIndex, botRng
     }
 
     public init() {}
@@ -151,6 +151,9 @@ public final class Game: Codable {
         firstMovePerformer = try c.decodeIfPresent(Int.self, forKey: .firstMovePerformer) ?? 0
         playerToTake = try c.decodeIfPresent(Int.self, forKey: .playerToTake) ?? 0
         agreedNoVists = try c.decodeIfPresent(Bool.self, forKey: .agreedNoVists) ?? false
+        seasonSeed = try c.decodeIfPresent(String.self, forKey: .seasonSeed)
+        seasonDealIndex = try c.decodeIfPresent(Int.self, forKey: .seasonDealIndex) ?? 0
+        botRng = try c.decodeIfPresent(SeasonRandom.self, forKey: .botRng)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -172,6 +175,9 @@ public final class Game: Codable {
         try c.encode(firstMovePerformer, forKey: .firstMovePerformer)
         try c.encode(playerToTake, forKey: .playerToTake)
         try c.encode(agreedNoVists, forKey: .agreedNoVists)
+        try c.encodeIfPresent(seasonSeed, forKey: .seasonSeed)
+        try c.encode(seasonDealIndex, forKey: .seasonDealIndex)
+        try c.encodeIfPresent(botRng, forKey: .botRng)
     }
 
     // MARK: - Очерёдность игроков и определение ИИ
@@ -311,7 +317,29 @@ public final class Game: Codable {
     }
 
     public static func loadLast() -> Game? {
-        (try? load("lastgame.json")) ?? nil
+        // a season game has its own slot; never hand it back as the normal game
+        guard let game = (try? load("lastgame.json")) ?? nil, game.seasonSeed == nil else { return nil }
+        return game
+    }
+
+    /// A season run keeps its own save slot, so it never overwrites a normal saved game.
+    public static let seasonGameFile = "seasongame.json"
+
+    public static func loadSeason() -> Game? {
+        guard let game = (try? load(seasonGameFile)) ?? nil, game.seasonSeed != nil else { return nil }
+        return game
+    }
+
+    // Season games deal from the season seed, so every player gets the same
+    // cards in the same order, and the bots draw from a per-deal seeded stream
+    // (persisted, so a resumed deal replays identically).
+    public var seasonSeed: String?
+    public var seasonDealIndex = 0
+    public var botRng: SeasonRandom?
+
+    /// The generator the bots use for their random choices.
+    public var aiRandom: PrefRandom {
+        botRng ?? DefaultRandom()
     }
 
     // Начало новой раздачи
@@ -319,7 +347,13 @@ public final class Game: Codable {
         curentBids = OrderedIntDict()
         isVister = OrderedIntDict()
         agreedNoVists = false
-        deal = Deal()
+        let dealt = Deal()
+        if let seed = seasonSeed {
+            dealt.shuffle(SeasonRandom.forPurpose(seed, "deal", seasonDealIndex))
+            botRng = SeasonRandom.forPurpose(seed, "bots", seasonDealIndex)
+            seasonDealIndex += 1
+        }
+        deal = dealt
         deal.hands[0].isVisible = !externalDriver
         phase = .Negotiations
         maxBid = nil
@@ -362,8 +396,9 @@ public final class Game: Codable {
         PrefStorage.writeText(name, PrefStorage.encodeToString(self))
     }
 
+    /// A season run keeps its own slot, so it never overwrites a normal saved game.
     public func saveLast() {
-        save("lastgame.json")
+        save(seasonSeed != nil ? Game.seasonGameFile : "lastgame.json")
     }
 
     // MARK: - Торговля

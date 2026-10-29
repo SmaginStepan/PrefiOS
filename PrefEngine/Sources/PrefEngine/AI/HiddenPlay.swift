@@ -337,6 +337,6 @@ open class HiddenPlay {
         for idx in sortedIndices where estimationValues[idx] == minValue {
             turns.append(estimationKeys[idx])
         }
-        return turns[Int.random(in: 0..<turns.count)]
+        return turns[game.aiRandom.nextInt(turns.count)]
     }
 }

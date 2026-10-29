@@ -46,7 +46,7 @@ open class OpenPlay {
         let distinctMoves = try situation.getDistinctMoves()
         if distinctMoves.isEmpty {
             // Думать всё равно нечего...
-            return allowedMoves[Int.random(in: 0..<allowedMoves.count)]
+            return allowedMoves[game.aiRandom.nextInt(allowedMoves.count)]
         }
         // Ухх... придётся таки думать...
         let contractHand = situation.contractor
@@ -96,7 +96,7 @@ open class OpenPlay {
                 // Ничего не можем поймать :(
                 AiDebug.log("----------------------------------")
                 AiDebug.log("Ничего не можем поймать :(")
-                return allowedMoves[Int.random(in: 0..<allowedMoves.count)]
+                return allowedMoves[game.aiRandom.nextInt(allowedMoves.count)]
             } else {
                 // Исключаем маловероятные варианты
                 let pMin = pMax / 5
@@ -130,7 +130,7 @@ open class OpenPlay {
 
                 var cPos = 0.0
                 pSum = catched.reduce(0.0) { $0 + $1.probability }
-                let pos = Double.random(in: 0..<1) * pSum
+                let pos = game.aiRandom.nextDouble() * pSum
                 for discard in catched {
                     cPos += discard.probability
                     if pos <= cPos {

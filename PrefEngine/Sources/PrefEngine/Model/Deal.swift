@@ -130,7 +130,9 @@ public final class Deal: Codable {
         hands.reduce(0) { $0 + $1.taken }
     }
 
-    public func shuffle() {
+    /// Deals three hands of ten and a two-card talon. A season deal passes its
+    /// own seeded generator, so every player gets the same cards.
+    public func shuffle(_ rnd: PrefRandom = DefaultRandom()) {
         prikup = Hand()
         hands = []
         inPlay = OrderedIntDict()
@@ -143,7 +145,7 @@ public final class Deal: Codable {
             let hand = Hand()
             hands.append(hand)
             for _ in 0..<10 {
-                let pos = Int.random(in: 0..<prikup.cards.count)
+                let pos = rnd.nextInt(prikup.cards.count)
                 hand.cards.append(prikup.cards[pos])
                 prikup.cards.remove(at: pos)
             }

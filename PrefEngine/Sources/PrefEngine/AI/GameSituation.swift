@@ -20,6 +20,8 @@ public final class GameSituation {
 
     private let trump: Int
 
+    private let rnd: PrefRandom
+
     public var calculated = 0
     public var skipped = 0
     public var maxwidth = 0
@@ -210,7 +212,7 @@ public final class GameSituation {
         }
 
         if firstLevel {
-            res.bestCard = bestCards![Int.random(in: 0..<bestCards!.count)]
+            res.bestCard = bestCards![rnd.nextInt(bestCards!.count)]
             // Карты надо вернуть только для первого уровня
         }
         if res.estimation == -Double.greatestFiniteMagnitude || res.estimation == Double.greatestFiniteMagnitude {
@@ -224,6 +226,7 @@ public final class GameSituation {
 
     public init(_ game: Game, _ info: AIInfo, _ gamePlay: OpenPlay) throws {
         self.gamePlay = gamePlay
+        self.rnd = game.aiRandom
 
         if game.playerInTurn == game.contractor {
             contractor = 0
