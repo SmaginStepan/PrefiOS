@@ -259,4 +259,89 @@ final class SeasonTests: XCTestCase {
         let data = try JSONSerialization.data(withJSONObject: out, options: [.sortedKeys])
         try data.write(to: URL(fileURLWithPath: path))
     }
+
+    /// Plays whole seasons with every seat on the bots and returns one line per
+    /// deal, in the exact format of the Kotlin driver that runs Android's real
+    /// engine (tools/parity). The two outputs must be identical, line for line.
+    private func parityTranscript(seed: String, pools: Int) throws -> String {
+        let cfg = SeasonConfig.derive(seed)
+        let state = SeasonState()
+        state.seed = seed
+        state.seasonId = "parity"
+        state.nextDealer = cfg.firstDealer
+        var out = "CONFIG limit=\(cfg.limit) type=\(cfg.rules.gameType) prog=\(cfg.rules.raspasyProgression) exit=\(cfg.rules.raspasyExit) dealer=\(cfg.firstDealer)\n"
+        for pool in 0..<pools {
+            let game = Seasons.newPoolGame(state, playerName: "Me", ai1Name: "West", ai2Name: "East")
+            var logged = 0
+            try game.next()
+            var steps = 0
+            var fallbacks = 0
+            while game.phase != .Ended && steps < 200_000 {
+                steps += 1
+                do {
+                    try AI.makeMove(game)
+                } catch {
+                    // identical to HostGameSession's fallback for rare positions
+                    if game.phase == .Playing, let move = game.getAllowedMoves().first {
+                        fallbacks += 1
+                        game.playCard(move)
+                        try game.next()
+                    } else {
+                        throw error
+                    }
+                }
+                while logged < game.calc.gameLog.count {
+                    let r = game.calc.gameLog[logged]
+                    let t = r.taken.entries.sorted { $0.key < $1.key }.map { String($0.value) }.joined(separator: ",")
+                    let v = r.visters.sorted().map(String.init).joined(separator: ",")
+                    let rng = game.botRng.map { String(Int64(bitPattern: $0.state)) } ?? "null"
+                    out += "P\(pool) D\(logged) \(r.gameType) c=\(r.contractor) k=\(r.contract) t=\(t) v=\(v) d=\(r.dealer) m=\(r.multiplier) rng=\(rng) idx=\(game.seasonDealIndex)\n"
+                    logged += 1
+                }
+            }
+            game.calc.calc() // the results screen computes the final settlement
+            let sc = game.calc.scores
+            let sheet = (0...2).map { i -> String in
+                let visty = sc[i].visty.entries.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+                return "[\(sc[i].pulya)/\(sc[i].gora)/\(visty)]"
+            }.joined(separator: " ")
+            let settle = (0...2).map { String(roundToLongHalfUp(sc[$0].score * 10)) }.joined(separator: ",")
+            out += "POOL \(pool) deals=\(game.calc.gameLog.count) steps=\(steps) fallbacks=\(fallbacks) sheet=\(sheet) settlement10=\(settle)\n"
+            Seasons.poolClosed(state, game, settlement: sc[0].score)
+        }
+        out += "TOTAL total10=\(state.total10) pools=\(state.poolsClosed) next=\(state.nextDealIndex) dealer=\(state.nextDealer)\n"
+        return out
+    }
+
+    /// The bots play seasons exactly like Android's: two short seasons (three
+    /// pools each) replayed against transcripts produced by Android's own engine.
+    /// A mismatch means the AI, the engine or the RNG draw order drifted from
+    /// Android, which would split season players' results.
+    func testBotsPlaySeasonsLikeAndroid() throws {
+        for (seed, golden) in [
+            ("parity-seed-02", SeasonParityFixtures.transcript_parity_seed_02),
+            ("parity-seed-05", SeasonParityFixtures.transcript_parity_seed_05),
+        ] {
+            let mine = try parityTranscript(seed: seed, pools: 3)
+            let want = golden.split(separator: "\n").map(String.init) // literals drop the final newline
+            let got = mine.split(separator: "\n").map(String.init)
+            XCTAssertEqual(want.count, got.count, "\(seed): transcript length")
+            for (i, (a, b)) in zip(want, got).enumerated() where a != b {
+                XCTFail("\(seed) line \(i + 1) differs from Android's engine:\n  android: \(a)\n  swift:   \(b)")
+                break
+            }
+        }
+    }
+
+    /// Any seed, any number of pools; writes the transcript for diffing with the
+    /// Kotlin driver (tools/parity/run_parity.sh does this for you).
+    ///   PREF_PARITY_SEED=<hex> PREF_PARITY_POOLS=3 PREF_PARITY_DUMP=<file> swift test --filter testDumpSeasonBotRun
+    func testDumpSeasonBotRun() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let seed = env["PREF_PARITY_SEED"], let path = env["PREF_PARITY_DUMP"] else {
+            throw XCTSkip("bot-parity dump; set PREF_PARITY_SEED, PREF_PARITY_POOLS and PREF_PARITY_DUMP")
+        }
+        let pools = Int(env["PREF_PARITY_POOLS"] ?? "3") ?? 3
+        try parityTranscript(seed: seed, pools: pools).write(toFile: path, atomically: true, encoding: .utf8)
+    }
 }

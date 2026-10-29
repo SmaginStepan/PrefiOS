@@ -438,7 +438,8 @@ struct GameView: View {
                         .buttonStyle(.bordered)
                     }
                     HStack(spacing: 6) {
-                        if !vm.hosted {
+                        // advice is off in season games: everyone competes on the same footing
+                        if !vm.hosted && !vm.isSeasonRun {
                             Button { vm.requestAdvice() } label: {
                                 Text(L("game_btn_hint")).font(.system(size: 12)).foregroundColor(.white)
                             }

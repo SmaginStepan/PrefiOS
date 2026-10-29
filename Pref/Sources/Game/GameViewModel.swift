@@ -30,6 +30,11 @@ struct SayEvent {
 final class GameViewModel: ObservableObject {
 
     private(set) var game: Game!
+
+    /// The running game is a season run (shared deals, no advice).
+    var isSeasonRun: Bool {
+        game?.seasonSeed != nil
+    }
     private weak var app: AppState?
 
     /// Engine work runs off the main thread on this serial queue.

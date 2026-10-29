@@ -5,6 +5,7 @@ import PrefEngine
 enum Route: Hashable {
     case game
     case multiplayer
+    case season
     case settings
     case calcRules
     case calc
@@ -29,13 +30,14 @@ struct RootView: View {
     var body: some View {
         NavigationStack(path: $path) {
             MainMenuView(
-                hasSavedGame: app.game != nil,
+                hasSavedGame: app.normalGame != nil,
                 onNewGame: {
                     app.game = Game.create(ai1Name: L("ai_name_1"), ai2Name: L("ai_name_2"))
                     path.append(.game)
                 },
                 onContinue: { path.append(.game) },
                 onMultiplayer: { path.append(.multiplayer) },
+                onSeason: { path.append(.season) },
                 onLearning: { path.append(.learning) },
                 onCalc: { path.append(.calc) },
                 onSettings: { path.append(.settings) },
@@ -46,6 +48,8 @@ struct RootView: View {
             .navigationDestination(for: Route.self) { route in
                 destination(route)
             }
+            // the menu always belongs to the normal game, never a season run
+            .onAppear { app.seasonMode = false }
         }
         .background(Theme.background)
         .onAppear {
@@ -65,6 +69,8 @@ struct RootView: View {
                     path = [.learning]
                 case "mp", "mpcreate":
                     path = [.multiplayer]
+                case "season":
+                    path = [.season]
                 default:
                     break
                 }
@@ -80,6 +86,12 @@ struct RootView: View {
 
         case .multiplayer:
             MultiplayerView(onBack: { popBack() })
+
+        case .season:
+            SeasonView(
+                onPlay: { path.append(.game) },
+                onToMenu: { path = [] }
+            )
 
         case .settings:
             SettingsView(forCalc: false, calc: app.calc, game: app.game, onSaved: { popBack() })
@@ -158,8 +170,23 @@ struct RootView: View {
                     calc: calc,
                     onClose: {
                         let score = calc.scores[0].score
-                        app.game = nil
-                        path = [.highScores(score: score)]
+                        if app.seasonMode {
+                            // a season pool is closed: bank its settlement and
+                            // start the next pool on the following deals
+                            if let season = Seasons.load(), let game = app.game {
+                                Seasons.poolClosed(season, game, settlement: score)
+                                app.seasonGame = Seasons.newPoolGame(
+                                    season,
+                                    playerName: calc.scores[0].name,
+                                    ai1Name: calc.scores[1].name,
+                                    ai2Name: calc.scores[2].name
+                                )
+                            }
+                            path = [.season]
+                        } else {
+                            app.game = nil
+                            path = [.highScores(score: score)]
+                        }
                     }
                 )
             } else {

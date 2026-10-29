@@ -26,6 +26,21 @@ FILES = {
 # keeps them). Empty since Android 5edf293 added about_f5 to its resources.
 EXTRA = {}
 
+# iOS-specific wording for keys that exist on Android but must not name Google's
+# store (App Review guideline 2.3.10: no references to other platforms).
+OVERRIDE = {
+    "menu_rate_sub": {
+        "en": "leave a review on the App Store",
+        "ru": "оставьте отзыв в App Store",
+        "es": "deja una reseña en la App Store",
+    },
+    "rate_banner_text": {
+        "en": "Enjoying Preferans Master? Please rate it on the App Store.",
+        "ru": "Нравится «Преферанс мастер»? Оцените игру в App Store.",
+        "es": "¿Te gusta Preferans Master? Valóralo en la App Store.",
+    },
+}
+
 
 def android_to_ios(s: str) -> str:
     s = s.replace("\\'", "'").replace('\\"', '"').replace("\\n", "\n")
@@ -45,9 +60,10 @@ def load(path: Path):
 
 
 langs = {lang: load(path) for lang, path in FILES.items()}
-for key, values in EXTRA.items():
-    for lang, value in values.items():
-        langs[lang][key] = value
+for table in (EXTRA, OVERRIDE):
+    for key, values in table.items():
+        for lang, value in values.items():
+            langs[lang][key] = value
 
 catalog = {"sourceLanguage": "en", "version": "1.0", "strings": {}}
 for key in langs["en"]:
