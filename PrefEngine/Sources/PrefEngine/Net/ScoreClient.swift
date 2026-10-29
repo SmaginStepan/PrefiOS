@@ -3,14 +3,33 @@ import CryptoKit
 
 /// Client for the global leaderboard (ScoreServer on the VPS). Reads need the
 /// API key; writes are HMAC-signed. Matches Android net/ScoreClient.kt.
+///
+/// The key and secret ship inside the app binary by design (same as Android),
+/// but they are NOT in this public repository: the app injects them at launch
+/// from build settings (Config/Secrets.xcconfig, git-ignored) via `configure`.
+/// Without them every call degrades gracefully: reads return nil, writes stay
+/// queued.
 public enum ScoreClient {
 
     private static let base = "https://scores.preferansmaster.com"
     private static let game = "pref"
-    private static let board = "alltime"
-    // Shipping in the binary by design (same as Android).
-    private static let apiKey = "1711193a9bc38cf8ec25876c09981f7d"
-    private static let secret = "9bc01938a5d526e89f1cc67abed8e599924537d84d0217e0e3f67439a1dd27d6"
+    /// The all-time board used by the single-player table.
+    public static let allTimeBoard = "alltime"
+
+    private static var credentials: (apiKey: String, secret: String)?
+
+    /// Hands the app's credentials to the client. Empty values count as missing.
+    public static func configure(apiKey: String?, secret: String?) {
+        if let apiKey = apiKey, let secret = secret, !apiKey.isEmpty, !secret.isEmpty {
+            credentials = (apiKey, secret)
+        } else {
+            credentials = nil
+        }
+    }
+
+    public static var isConfigured: Bool {
+        credentials != nil
+    }
 
     public struct Entry: Codable {
         public var rank: Int
@@ -73,6 +92,35 @@ public enum ScoreClient {
         }
     }
 
+    /// The season the server is running (its seed derives every deal and rule).
+    public struct SeasonInfo {
+        public var seasonId: String
+        public var startsAt: Int64
+        public var endsAt: Int64
+        public var seed: String
+    }
+
+    private struct SeasonResponse: Codable {
+        var season_id: String
+        var starts_at: Int64
+        var ends_at: Int64
+        /// a JSON document stored as text: {"seed":"<hex>"}
+        var payload: String?
+    }
+
+    private struct SeasonPayload: Codable {
+        var seed: String = ""
+
+        private enum CodingKeys: String, CodingKey {
+            case seed
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            seed = try c.decodeIfPresent(String.self, forKey: .seed) ?? ""
+        }
+    }
+
     /// What to do with a queued submission after one attempt.
     public enum SubmitOutcome {
         case accepted, drop, retry
@@ -85,11 +133,37 @@ public enum ScoreClient {
         return URLSession(configuration: cfg)
     }()
 
-    /// The global top list, or nil when the server is unreachable.
-    public static func fetchTop(limit: Int = 10) async -> [Entry]? {
+    /// The current season, or nil when none is running, the server is
+    /// unreachable or the credentials are missing.
+    public static func fetchSeason() async -> SeasonInfo? {
+        guard let creds = credentials else { return nil }
+        do {
+            var req = URLRequest(url: URL(string: "\(base)/v1/\(game)/season/current")!)
+            req.setValue(creds.apiKey, forHTTPHeaderField: "X-Api-Key")
+            let (data, resp) = try await session.data(for: req)
+            guard let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                return nil
+            }
+            let r = try JSONDecoder().decode(SeasonResponse.self, from: data)
+            guard let payload = r.payload,
+                  let seed = try? JSONDecoder().decode(SeasonPayload.self, from: Data(payload.utf8)).seed,
+                  !seed.isEmpty else {
+                return nil
+            }
+            return SeasonInfo(seasonId: r.season_id, startsAt: r.starts_at, endsAt: r.ends_at, seed: seed)
+        } catch {
+            NSLog("PrefNet: season fetch failed: %@", "\(error)")
+            return nil
+        }
+    }
+
+    /// A board's top list ("alltime" or "total:<seasonId>"), or nil when the
+    /// server is unreachable or the credentials are missing.
+    public static func fetchTop(limit: Int = 10, board: String = allTimeBoard) async -> [Entry]? {
+        guard let creds = credentials else { return nil }
         do {
             var req = URLRequest(url: URL(string: "\(base)/v1/\(game)/boards/\(board)/top?limit=\(limit)")!)
-            req.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
+            req.setValue(creds.apiKey, forHTTPHeaderField: "X-Api-Key")
             let (data, resp) = try await session.data(for: req)
             guard let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 return nil
@@ -102,9 +176,16 @@ public enum ScoreClient {
     }
 
     /// Submits one score (already in the x10 integer scale). A rejection the
-    /// server calls permanent (out of range) is `.drop`; rate limiting and
-    /// network failures are `.retry`.
-    public static func submit(playerId: String, name: String, score10: Int64, deviceTs: Int64) async -> SubmitOutcome {
+    /// server calls permanent (out of range) is `.drop`; rate limiting, missing
+    /// credentials and network failures are `.retry`.
+    public static func submit(
+        playerId: String,
+        name: String,
+        score10: Int64,
+        deviceTs: Int64,
+        board: String = allTimeBoard
+    ) async -> SubmitOutcome {
+        guard let creds = credentials else { return .retry }
         do {
             let path = "/v1/\(game)/boards/\(board)/scores"
             let body = try JSONEncoder().encode(
@@ -117,9 +198,9 @@ public enum ScoreClient {
             req.httpMethod = "POST"
             req.httpBody = body
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
+            req.setValue(creds.apiKey, forHTTPHeaderField: "X-Api-Key")
             req.setValue(ts, forHTTPHeaderField: "X-Ts")
-            req.setValue(sign(secret, signaturePayload(ts, "POST", path, body)), forHTTPHeaderField: "X-Sig")
+            req.setValue(sign(creds.secret, signaturePayload(ts, "POST", path, body)), forHTTPHeaderField: "X-Sig")
             let (data, resp) = try await session.data(for: req)
             guard let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 return .retry // 5xx, 401 clock drift…

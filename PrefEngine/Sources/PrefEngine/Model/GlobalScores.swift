@@ -87,7 +87,7 @@ public enum GlobalScores {
     /// Queues a finished game's result; wins under `minScore` never board.
     public static func enqueue(name: String, score: Double) {
         if score < minScore { return }
-        let score10 = Int64((score * 10).rounded())
+        let score10 = roundToLongHalfUp(score * 10)
         var p = loadPending()
         p.items.append(PendingScore(name: name, score10: score10, deviceTs: Int64(Date().timeIntervalSince1970)))
         savePending(p)

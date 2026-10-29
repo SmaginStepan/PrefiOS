@@ -63,4 +63,56 @@ final class GlobalScoresTests: XCTestCase {
         s.limit = 40
         XCTAssertEqual(40, AppSettings().limit)
     }
+
+    func testRoundingMatchesKotlinRoundToLong() {
+        // ties go toward +infinity, not away from zero
+        XCTAssertEqual(-42, roundToLongHalfUp(-42.5))
+        XCTAssertEqual(43, roundToLongHalfUp(42.5))
+        XCTAssertEqual(-43, roundToLongHalfUp(-42.6))
+        XCTAssertEqual(-42, roundToLongHalfUp(-42.4))
+        XCTAssertEqual(0, roundToLongHalfUp(0.49999999999999994))
+        XCTAssertEqual(425, roundToLongHalfUp(42.5 * 10))
+    }
+
+    func testClientWithoutCredentialsDegradesGracefully() async {
+        ScoreClient.configure(apiKey: nil, secret: nil)
+        XCTAssertFalse(ScoreClient.isConfigured)
+        let top = await ScoreClient.fetchTop()
+        XCTAssertNil(top, "no credentials: reads fail soft, the app falls back to the cached board")
+        let season = await ScoreClient.fetchSeason()
+        XCTAssertNil(season)
+        let outcome = await ScoreClient.submit(playerId: "p", name: "n", score10: 1, deviceTs: 1)
+        XCTAssertEqual(.retry, outcome, "no credentials: the queued score stays queued")
+    }
+
+    /// Live server check. Needs the real credentials in the environment:
+    ///   PREF_SCORE_API_KEY=… PREF_SCORE_SECRET=… swift test --filter testLiveScoreServer
+    func testLiveScoreServer() async throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let key = env["PREF_SCORE_API_KEY"], let secret = env["PREF_SCORE_SECRET"] else {
+            throw XCTSkip("live test; set PREF_SCORE_API_KEY and PREF_SCORE_SECRET")
+        }
+        ScoreClient.configure(apiKey: key, secret: secret)
+        defer { ScoreClient.configure(apiKey: nil, secret: nil) }
+
+        let fetchedTop = await ScoreClient.fetchTop(limit: 10)
+        let top = try XCTUnwrap(fetchedTop)
+        XCTAssertEqual(10, top.count)
+
+        let fetchedSeason = await ScoreClient.fetchSeason()
+        let season = try XCTUnwrap(fetchedSeason, "a season must be running")
+        XCTAssertFalse(season.seed.isEmpty)
+        XCTAssertGreaterThan(season.endsAt, season.startsAt)
+        print("LIVE season \(season.seasonId) seed \(season.seed)")
+
+        // an absurd score authenticates (HTTP 200 + accepted:false) and is
+        // rejected on its value: nothing is recorded on either board
+        let absurd: Int64 = 99_999_999
+        let a = await ScoreClient.submit(playerId: "ios-sig-selftest", name: "SigTest", score10: absurd, deviceTs: Int64(Date().timeIntervalSince1970))
+        XCTAssertEqual(.drop, a, "alltime: signed write authenticated, value rejected")
+        let b = await ScoreClient.submit(playerId: "ios-sig-selftest", name: "SigTest", score10: absurd, deviceTs: Int64(Date().timeIntervalSince1970), board: "total:\(season.seasonId)")
+        XCTAssertEqual(.drop, b, "season board path (with the colon) signs and authenticates too")
+        let board = await ScoreClient.fetchTop(limit: 10, board: "total:\(season.seasonId)")
+        XCTAssertNotNil(board, "the season board is readable")
+    }
 }

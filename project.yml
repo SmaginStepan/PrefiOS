@@ -28,6 +28,9 @@ targets:
         buildPhase: resources
     dependencies:
       - package: PrefEngine
+    configFiles:
+      Debug: Config/Debug.xcconfig
+      Release: Config/Release.xcconfig
     info:
       path: Pref/Info.plist
       properties:
@@ -43,6 +46,11 @@ targets:
            UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UIUserInterfaceStyle: Dark
         ITSAppUsesNonExemptEncryption: false
+        # injected from the untracked Config/Secrets.xcconfig at build time
+        PrefScoreApiKey: $(PREF_SCORE_API_KEY)
+        PrefScoreSecret: $(PREF_SCORE_SECRET)
+        GADApplicationIdentifier: $(PREF_ADMOB_APP_ID)
+        PrefAdMobInterstitialId: $(PREF_ADMOB_INTERSTITIAL_ID)
     settings:
       base:
         SWIFT_VERSION: "5.9"

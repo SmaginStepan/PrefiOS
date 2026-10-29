@@ -8,3 +8,6 @@ xcuserdata/
 PrefEngine/.build/
 .DS_Store
 screenshots/
+
+# Local secrets (the repo is public)
+Config/Secrets.xcconfig

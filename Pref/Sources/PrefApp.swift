@@ -12,6 +12,12 @@ final class AppState: ObservableObject {
         PrefStorage.initialize(filesDir: filesDir)
         calc = Calculation.loadLast()
         game = Game.loadLast()
+        // the score credentials ship in the binary but not in the public repo:
+        // they arrive through Info.plist from the untracked Secrets.xcconfig
+        ScoreClient.configure(
+            apiKey: PrefConfig.string("PrefScoreApiKey"),
+            secret: PrefConfig.string("PrefScoreSecret")
+        )
         // scores finished offline reach the global board on the next launch
         Task.detached(priority: .utility) {
             await GlobalScores.flushPending()

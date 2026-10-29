@@ -26,8 +26,16 @@
 	<string>2.0.9</string>
 	<key>CFBundleVersion</key>
 	<string>2</string>
+	<key>GADApplicationIdentifier</key>
+	<string>$(PREF_ADMOB_APP_ID)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>PrefAdMobInterstitialId</key>
+	<string>$(PREF_ADMOB_INTERSTITIAL_ID)</string>
+	<key>PrefScoreApiKey</key>
+	<string>$(PREF_SCORE_API_KEY)</string>
+	<key>PrefScoreSecret</key>
+	<string>$(PREF_SCORE_SECRET)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

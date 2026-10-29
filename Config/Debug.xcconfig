@@ -1,0 +1,7 @@
+// Debug builds. Secrets (score API key/secret) come from the UNTRACKED
+// Secrets.xcconfig; see Secrets.example.xcconfig. The AdMob ids below are
+// Google's PUBLIC test ids, so test ads can never be a real-money ad.
+#include? "Secrets.xcconfig"
+
+PREF_ADMOB_APP_ID = ca-app-pub-3940256099942544~1458002511
+PREF_ADMOB_INTERSTITIAL_ID = ca-app-pub-3940256099942544/4411468910

@@ -1,0 +1,7 @@
+// Release builds. Everything comes from the UNTRACKED Secrets.xcconfig (see
+// Secrets.example.xcconfig). Without real AdMob ids the app ships with ads
+// switched off, so test ads can never reach players.
+PREF_ADMOB_APP_ID =
+PREF_ADMOB_INTERSTITIAL_ID =
+
+#include? "Secrets.xcconfig"
