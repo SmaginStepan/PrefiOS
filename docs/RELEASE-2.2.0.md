@@ -32,7 +32,7 @@ Monetization → In-App Purchases → **+**
 |---|---|
 | Type | Non-Consumable |
 | Reference name | Remove ads |
-| Product ID | `remove_ads` (exactly; the app looks it up by this id) |
+| Product ID | `remove_ads_forever` (exactly; the app looks it up by this id) |
 | Price | USD 4.99 tier (Tier 5), all territories |
 | Family Sharing | optional (off is fine) |
 
@@ -53,7 +53,7 @@ State must reach **Ready to Submit**.
 ## 2. Attach the IAP to version 2.2.0
 
 App Store Connect → Pref → iOS App 2.2.0 → scroll to **In-App Purchases and
-Subscriptions** → **+** → tick `remove_ads`. (The first IAP of an app is
+Subscriptions** → **+** → tick `remove_ads_forever`. (The first IAP of an app is
 reviewed together with a new app version, so it has to be attached here.)
 Then choose the uploaded build under **Build**.
 

@@ -14,7 +14,7 @@ final class StoreManager: ObservableObject {
     static let shared = StoreManager()
 
     /// The in-app purchase product id to create in App Store Connect (non-consumable).
-    static let productId = "remove_ads"
+    static let productId = "remove_ads_forever"
 
     enum BuyResult { case purchased, cancelled, pending, unavailable }
 

@@ -23,7 +23,7 @@
           "locale": "es_ES"
         }
       ],
-      "productID": "remove_ads",
+      "productID": "remove_ads_forever",
       "referenceName": "Remove ads",
       "type": "NonConsumable"
     }
