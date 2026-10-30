@@ -22,7 +22,7 @@ no "iOS Distribution" certificate. Fix once, then either path works:
    `Pref` scheme (needs the untracked `Config/Secrets.xcconfig`).
 
 A new upload of the same version needs a higher build number (project.yml:
-`CFBundleVersion` and `CURRENT_PROJECT_VERSION`, now 3).
+`CFBundleVersion` and `CURRENT_PROJECT_VERSION`, now 5).
 
 ## 1. App Store Connect — create the in-app purchase
 

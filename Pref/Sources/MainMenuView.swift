@@ -101,7 +101,9 @@ struct MainMenuView: View {
         }
         .background(Theme.background)
         .sheet(isPresented: $showRemoveAds) {
-            RemoveAdsSheet()
+            // passed on explicitly: the Mac (Designed for iPad) build does not
+            // hand the environment on to a presented sheet and trapped
+            RemoveAdsSheet().environmentObject(store)
         }
         .alert(L("menu_new_game"), isPresented: $showNewGame) {
             Button(L("new_game_start")) { onNewGame() }
