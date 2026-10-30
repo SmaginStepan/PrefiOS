@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AppTrackingTransparency
 import GoogleMobileAds
 import UserMessagingPlatform
 import PrefEngine
@@ -20,8 +21,9 @@ func topViewController() -> UIViewController? {
 /// and its score table. The game stays fully usable without it: no network, no
 /// consent, no loaded ad or "Remove ads" all simply skip the ad and carry on.
 ///
-/// There is no App Tracking Transparency prompt, so the advertising identifier
-/// is never read; ads are served without it.
+/// Launch order: Google UMP consent (where required), then the App Tracking
+/// Transparency prompt if the player has not decided yet, and only then the
+/// Mobile Ads SDK. Declining either still gets ads (less personalised).
 @MainActor
 final class AdsManager: NSObject, ObservableObject, FullScreenContentDelegate {
     static let shared = AdsManager()
@@ -51,26 +53,72 @@ final class AdsManager: NSObject, ObservableObject, FullScreenContentDelegate {
         guard !started, enabled, !Engagement.adFree else { return }
         started = true
         let consent = ConsentInformation.shared
+        #if DEBUG
+        // EEA / reset testing: PREF_UMP_EEA=1 forces the EEA form, PREF_UMP_RESET=1
+        // forgets the stored choice. Simulators are test devices automatically.
+        let env = ProcessInfo.processInfo.environment
+        if env["PREF_UMP_RESET"] == "1" { consent.reset() }
+        let parameters = RequestParameters()
+        if env["PREF_UMP_EEA"] == "1" {
+            let debug = DebugSettings()
+            debug.geography = .EEA
+            parameters.debugSettings = debug
+        }
+        #else
+        let parameters = RequestParameters()
+        #endif
         refreshPrivacyOptions()
-        consent.requestConsentInfoUpdate(with: RequestParameters()) { [weak self] error in
+        consent.requestConsentInfoUpdate(with: parameters) { [weak self] error in
             #if DEBUG
             NSLog("PREFADTEST ump update error=%@ canRequestAds=%d", String(describing: error), ConsentInformation.shared.canRequestAds ? 1 : 0)
             #endif
             Task { @MainActor in
                 guard let self = self else { return }
                 if error != nil {
-                    self.startSdk() // offline or failed: still honour an earlier choice
+                    self.proceed() // offline or failed: still honour an earlier choice
                     return
                 }
                 ConsentForm.loadAndPresentIfRequired(from: topViewController()) { _ in
                     Task { @MainActor in
                         self.refreshPrivacyOptions()
-                        self.startSdk()
+                        self.proceed()
                     }
                 }
             }
         }
-        if consent.canRequestAds { startSdk() }
+        if consent.canRequestAds { proceed() }
+    }
+
+    /// Consent is settled: ask for tracking permission if still undecided, then
+    /// start the SDK. No consent, no ATT prompt and no ads.
+    private func proceed() {
+        guard ConsentInformation.shared.canRequestAds else { return }
+        requestTrackingIfUndecided { [weak self] in self?.startSdk() }
+    }
+
+    /// The ATT prompt only shows while the app is active, and only once: after
+    /// the player's answer the status is never `.notDetermined` again.
+    private func requestTrackingIfUndecided(then: @escaping () -> Void) {
+        guard ATTrackingManager.trackingAuthorizationStatus == .notDetermined else {
+            then()
+            return
+        }
+        guard UIApplication.shared.applicationState == .active else {
+            var token: NSObjectProtocol?
+            token = NotificationCenter.default.addObserver(
+                forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                if let token { NotificationCenter.default.removeObserver(token) }
+                MainActor.assumeIsolated { self?.requestTrackingIfUndecided(then: then) }
+            }
+            return
+        }
+        // iOS ignores a request made in the first instants after launch
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            ATTrackingManager.requestTrackingAuthorization { _ in
+                DispatchQueue.main.async(execute: then)
+            }
+        }
     }
 
     /// Lets the player change their ad consent choice, from the menu.
@@ -78,7 +126,7 @@ final class AdsManager: NSObject, ObservableObject, FullScreenContentDelegate {
         ConsentForm.presentPrivacyOptionsForm(from: topViewController()) { [weak self] _ in
             Task { @MainActor in
                 self?.refreshPrivacyOptions()
-                self?.startSdk()
+                self?.proceed()
             }
         }
     }
