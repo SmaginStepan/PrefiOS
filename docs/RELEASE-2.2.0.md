@@ -6,6 +6,24 @@ Nothing here is submitted for review: that is the last step, and yours.
 The real AdMob ids live only in the untracked `Config/Secrets.xcconfig`
 (this repository is public). A Release build without them ships with ads off.
 
+## 0. Upload the build to TestFlight
+
+The command-line upload failed: the Apple Developer account has a **new
+Program License Agreement to accept** ("PLA Update available") and this Mac has
+no "iOS Distribution" certificate. Fix once, then either path works:
+
+1. developer.apple.com/account → accept the latest Program License Agreement
+   (also App Store Connect → Business → Agreements).
+2. Open `~/Desktop/Projects/PrefiOS-archives/Pref-2.2.0-3.xcarchive` (double-click:
+   Xcode → Organizer → Archives). It is already built at 2.2.0 (3) with the real
+   AdMob ids. **Distribute App → App Store Connect → Upload** (automatic signing
+   creates the distribution certificate). 
+3. Or rebuild: `xcodegen generate`, then Product → Archive in Xcode on the
+   `Pref` scheme (needs the untracked `Config/Secrets.xcconfig`).
+
+A new upload of the same version needs a higher build number (project.yml:
+`CFBundleVersion` and `CURRENT_PROJECT_VERSION`, now 3).
+
 ## 1. App Store Connect — create the in-app purchase
 
 Monetization → In-App Purchases → **+**
