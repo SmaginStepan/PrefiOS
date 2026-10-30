@@ -1,0 +1,37 @@
+{
+  "identifier": "A1B2C3D4",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "4.99",
+      "familyShareable": false,
+      "internalID": "6787721900",
+      "localizations": [
+        {
+          "description": "Pay once and the ads between deals disappear for good.",
+          "displayName": "Remove ads",
+          "locale": "en_US"
+        },
+        {
+          "description": "Заплатите один раз — и реклама между раздачами исчезнет навсегда.",
+          "displayName": "Убрать рекламу",
+          "locale": "ru_RU"
+        },
+        {
+          "description": "Paga una vez y los anuncios entre repartos desaparecen para siempre.",
+          "displayName": "Quitar anuncios",
+          "locale": "es_ES"
+        }
+      ],
+      "productID": "remove_ads",
+      "referenceName": "Remove ads",
+      "type": "NonConsumable"
+    }
+  ],
+  "settings": {},
+  "subscriptionGroups": [],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

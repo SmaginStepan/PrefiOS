@@ -58,12 +58,36 @@ struct PrefApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(app)
+                .environmentObject(StoreManager.shared)
+                .environmentObject(AdsManager.shared)
+                .task {
+                    // purchases first, so a paying player never sees a consent form
+                    StoreManager.shared.start()
+                    AdsManager.shared.start()
+                    #if DEBUG
+                    // simulator hook: finish "deal 11" a few seconds after launch
+                    if ProcessInfo.processInfo.environment["PREF_ADTEST"] != nil {
+                        let s = Engagement.state()
+                        s.dealsFinished = Engagement.freeDeals
+                        PrefStorage.writeText("engagement.json", PrefStorage.encodeToString(s))
+                        try? await Task.sleep(nanoseconds: 25_000_000_000)
+                        let deals = Engagement.dealFinished()
+                        NSLog("PREFADTEST show deals=%d", deals)
+                        AdsManager.shared.showIfDue(dealsFinished: deals) {
+                            NSLog("PREFADTEST continued")
+                        }
+                    }
+                    #endif
+                }
                 .preferredColorScheme(.dark)
                 .tint(Theme.accentGold)
         }
         .onChange(of: scenePhase) { phase in
             if phase == .background || phase == .inactive {
                 app.saveAll()
+            }
+            if phase == .active {
+                Task { await StoreManager.shared.refresh() }
             }
         }
     }

@@ -43,6 +43,11 @@ struct RootView: View {
                 onSettings: { path.append(.settings) },
                 onHighScores: { path.append(.highScores(score: nil)) },
                 onDictionary: { path.append(.dictionary) },
+                onRate: {
+                    openReviewPage()
+                    Engagement.markRated()
+                },
+                onPrivacy: { AdsManager.shared.showPrivacyOptions() },
                 onAbout: { path.append(.about) }
             )
             .navigationDestination(for: Route.self) { route in
@@ -82,7 +87,14 @@ struct RootView: View {
     private func destination(_ route: Route) -> some View {
         switch route {
         case .game:
-            GameView(onShowScore: { path.append(.sheetGame) })
+            GameView(onShowScore: {
+                // a single-player deal just ended: count it, maybe show the ad,
+                // then the score table (multiplayer never comes here)
+                let deals = Engagement.dealFinished()
+                AdsManager.shared.showIfDue(dealsFinished: deals) {
+                    path.append(.sheetGame)
+                }
+            })
 
         case .multiplayer:
             MultiplayerView(onBack: { popBack() })

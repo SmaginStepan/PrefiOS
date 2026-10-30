@@ -41,10 +41,16 @@ struct MainMenuView: View {
     let onSettings: () -> Void
     let onHighScores: () -> Void
     let onDictionary: () -> Void
+    let onRate: () -> Void
+    let onPrivacy: () -> Void
     let onAbout: () -> Void
+
+    @EnvironmentObject private var store: StoreManager
+    @EnvironmentObject private var ads: AdsManager
 
     @State private var showNewGame = false
     @State private var newGameRules = ""
+    @State private var showRemoveAds = false
 
     var body: some View {
         ScrollView {
@@ -79,12 +85,24 @@ struct MainMenuView: View {
                 MenuItem(title: L("menu_settings"), subtitle: L("menu_settings_sub"), onClick: onSettings)
                 MenuItem(title: L("menu_records"), subtitle: L("menu_records_sub"), onClick: onHighScores)
                 MenuItem(title: L("menu_dictionary"), subtitle: L("menu_dictionary_sub"), onClick: onDictionary)
+                if ads.enabled && !store.adFree {
+                    MenuItem(title: L("menu_remove_ads"), subtitle: L("menu_remove_ads_sub")) {
+                        showRemoveAds = true
+                    }
+                }
+                MenuItem(title: L("menu_rate"), subtitle: L("menu_rate_sub"), onClick: onRate)
+                if ads.enabled && !store.adFree && ads.privacyOptionsRequired {
+                    MenuItem(title: L("menu_privacy"), subtitle: L("menu_privacy_sub"), onClick: onPrivacy)
+                }
                 MenuItem(title: L("menu_about"), subtitle: L("menu_about_sub"), onClick: onAbout)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
         .background(Theme.background)
+        .sheet(isPresented: $showRemoveAds) {
+            RemoveAdsSheet()
+        }
         .alert(L("menu_new_game"), isPresented: $showNewGame) {
             Button(L("new_game_start")) { onNewGame() }
             Button(L("menu_settings")) { onSettings() }

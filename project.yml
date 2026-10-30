@@ -7,6 +7,12 @@ options:
 packages:
   PrefEngine:
     path: PrefEngine
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads
+    from: 13.11.0
+  GoogleUserMessagingPlatform:
+    url: https://github.com/googleads/swift-package-manager-google-user-messaging-platform
+    from: 3.1.0
 targets:
   Pref:
     type: application
@@ -28,6 +34,8 @@ targets:
         buildPhase: resources
     dependencies:
       - package: PrefEngine
+      - package: GoogleMobileAds
+      - package: GoogleUserMessagingPlatform
     configFiles:
       Debug: Config/Debug.xcconfig
       Release: Config/Release.xcconfig
@@ -51,6 +59,8 @@ targets:
         PrefScoreSecret: $(PREF_SCORE_SECRET)
         GADApplicationIdentifier: $(PREF_ADMOB_APP_ID)
         PrefAdMobInterstitialId: $(PREF_ADMOB_INTERSTITIAL_ID)
+        # public App Store id, for the "Rate us" review page
+        PrefAppStoreId: "6787721817"
     settings:
       base:
         SWIFT_VERSION: "5.9"
@@ -61,3 +71,35 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: XHBZVNJQ2J
+  PrefTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: PrefTests
+      - path: Config/Pref.storekit
+        buildPhase: resources
+    dependencies:
+      - target: Pref
+      - package: PrefEngine
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.9"
+        DEVELOPMENT_TEAM: XHBZVNJQ2J
+schemes:
+  Pref:
+    build:
+      targets:
+        Pref: all
+    run:
+      config: Debug
+      storeKitConfiguration: Config/Pref.storekit
+    test:
+      config: Debug
+      targets: [PrefTests]
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

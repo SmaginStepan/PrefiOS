@@ -32,6 +32,8 @@
 	<false/>
 	<key>PrefAdMobInterstitialId</key>
 	<string>$(PREF_ADMOB_INTERSTITIAL_ID)</string>
+	<key>PrefAppStoreId</key>
+	<string>6787721817</string>
 	<key>PrefScoreApiKey</key>
 	<string>$(PREF_SCORE_API_KEY)</string>
 	<key>PrefScoreSecret</key>

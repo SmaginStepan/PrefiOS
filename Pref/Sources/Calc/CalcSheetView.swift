@@ -191,6 +191,9 @@ struct CalcSheetView: View {
     @State private var showDealer = false
     @State private var setupNames: [String] = []
     @State private var setupLimit = ""
+    // every tenth single-player deal, until the player has rated
+    @State private var showRateBanner = false
+    @State private var rateBannerChecked = false
 
     private func resolveCalc() -> Calculation {
         if let calc = calc {
@@ -298,6 +301,16 @@ struct CalcSheetView: View {
 
             // Bottom action bar
             if fromGame {
+                if showRateBanner {
+                    RateBanner(
+                        onRate: {
+                            openReviewPage()
+                            Engagement.markRated()
+                            showRateBanner = false
+                        },
+                        onLater: { showRateBanner = false }
+                    )
+                }
                 HStack {
                     Spacer()
                     Button { onContinueGame() } label: { Text(L("sheet_continue")) }
@@ -335,6 +348,10 @@ struct CalcSheetView: View {
             if setupNames.isEmpty {
                 setupNames = calc.scores.map { $0.name }
                 setupLimit = String(calc.limit)
+            }
+            if fromGame && !rateBannerChecked {
+                rateBannerChecked = true
+                showRateBanner = Engagement.rateBannerDue()
             }
             if startWithSetup && !fromGame && version == 0 {
                 showSetup = true
