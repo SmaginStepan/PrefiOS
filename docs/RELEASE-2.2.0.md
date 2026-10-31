@@ -8,21 +8,23 @@ The real AdMob ids live only in the untracked `Config/Secrets.xcconfig`
 
 ## 0. Upload the build to TestFlight
 
-The command-line upload failed: the Apple Developer account has a **new
-Program License Agreement to accept** ("PLA Update available") and this Mac has
-no "iOS Distribution" certificate. Fix once, then either path works:
-
-1. developer.apple.com/account → accept the latest Program License Agreement
-   (also App Store Connect → Business → Agreements).
-2. Open `~/Desktop/Projects/PrefiOS-archives/Pref-2.2.0-3.xcarchive` (double-click:
-   Xcode → Organizer → Archives). It is already built at 2.2.0 (3) with the real
-   AdMob ids. **Distribute App → App Store Connect → Upload** (automatic signing
-   creates the distribution certificate). 
-3. Or rebuild: `xcodegen generate`, then Product → Archive in Xcode on the
-   `Pref` scheme (needs the untracked `Config/Secrets.xcconfig`).
+Done: build **5** of 2.2.0 is uploaded and processed (builds 3 and 4 are older).
+How it was uploaded, for the next release: accept any pending Program License
+Agreement first (App Store Connect → Business), then
+`xcodegen generate`, `xcodebuild archive` on the `Pref` scheme (needs the
+untracked `Config/Secrets.xcconfig` for the real AdMob ids) and
+`xcodebuild -exportArchive -exportOptionsPlist ExportOptions.plist
+-allowProvisioningUpdates` with `method = app-store-connect`,
+`destination = upload` (automatic signing creates the distribution
+certificate).
 
 A new upload of the same version needs a higher build number (project.yml:
 `CFBundleVersion` and `CURRENT_PROJECT_VERSION`, now 5).
+
+Business setup that had to be finished before the price showed in the app:
+Paid Apps agreement Active, a bank account (processing takes up to 24 h),
+the US tax forms (W-8BEN, non-US individual) and the DAC7 questionnaire
+(no personal services).
 
 ## 1. App Store Connect — create the in-app purchase
 
@@ -52,17 +54,28 @@ State must reach **Ready to Submit**.
 
 ## 2. Attach the IAP to version 2.2.0
 
-App Store Connect → Pref → iOS App 2.2.0 → scroll to **In-App Purchases and
-Subscriptions** → **+** → tick `remove_ads_forever`. (The first IAP of an app is
-reviewed together with a new app version, so it has to be attached here.)
-Then choose the uploaded build under **Build**.
+The version page has no in-app purchase section any more. Choose the uploaded
+build under **Build**, then press **Add for Review** on the version page: this
+creates a *draft submission* (nothing is sent yet). Open the product
+(Monetization → In-App Purchases → Remove ads forever), press **Add for
+Review ▾** and pick the existing draft. The draft panel ("Borradores de
+envíos") must now list **both** the app version and the in-app purchase — a
+first non-consumable purchase is reviewed together with a new app version.
+The final **Submit to App Review** button is in that panel; it is yours.
 
-## 3. Sandbox test (on a real iPhone, TestFlight build)
+## 3. Sandbox test (TestFlight build; an iPhone or an Apple-silicon Mac)
 
-1. Users and Access → Sandbox → create a sandbox Apple account (new e-mail).
-2. iPhone → Settings → App Store → Sandbox Account → sign in with it.
-   (TestFlight builds buy through the sandbox automatically.)
-3. Install the TestFlight build. Play 10 single-player deals; from the 11th,
+Done once on a Mac (Designed for iPad run of the TestFlight build): the price
+(€5,99 in Spain) showed, the purchase dialog said "test purchase only, no
+charge" and the app switched to "Anuncios eliminados". Restore on a fresh
+install was not run.
+
+1. TestFlight builds buy through the sandbox automatically; confirm with your
+   own Apple ID — the dialog must say it is a test purchase and nothing is
+   charged. (A separate sandbox Apple account under Users and Access →
+   Sandbox is optional.)
+2. Install the TestFlight build.
+3. (iPhone steps from here.) Play 10 single-player deals; from the 11th,
    an ad should appear before the score table (not within 45 s of the last).
 4. Menu → **Remove ads** → Buy → confirm. Ads stop, the menu item and
    "Privacy settings" disappear.
@@ -122,9 +135,16 @@ encryption (HTTPS/TLS) → exempt.
 ## 7. AdMob console (once)
 
 * The iOS app and interstitial unit already exist (ids given to the build).
-* Privacy & messaging → create and publish the **GDPR** consent message for
-  the iOS app (EEA/UK); optional US-states message. Without a published
-  message the consent form never appears and EEA users get no ads.
+* Privacy & messaging → European regulations: a GDPR message for the iOS app
+  ("Преферанс мастер iOS GDPR", en/ru/es, EEA+UK+CH) is published, next to the
+  Android one (which was not touched). Without it EEA users get no ads. The
+  optional US-states message and the IDFA explainer are not used (the app
+  shows Apple's own tracking prompt after the consent form).
+* Apps → Verify app (iOS) fails until the store listing has a developer
+  website and `https://preferansmaster.com/app-ads.txt` serves
+  `google.com, pub-<AdMob publisher id>, DIRECT, f08c47fec0942fa0` (the
+  publisher id is shown on that AdMob page). It only lifts "Limited ad
+  serving"; it does not block review or release.
 * Link the app to its App Store listing once 2.2.0 is live; add `app-ads.txt`
   to https://preferansmaster.com if you want full ad inventory.
 
@@ -143,4 +163,5 @@ encryption (HTTPS/TLS) → exempt.
 | UMP EEA form | Simulator geography is not EEA, and the form needs a published AdMob message | Run a Debug build from Xcode on the device with scheme environment variables `PREF_UMP_EEA=1` (forces the EEA geography) and `PREF_UMP_RESET=1` (forgets the stored choice). Check: form appears, then the ATT prompt, then "Privacy settings" shows in the menu and reopens the form. |
 | ATT prompt on a real device | Appears on the simulator, but the system may not show it after one answer | Settings → Privacy & Security → Tracking → toggle, or delete the app to see it again. |
 | Real purchase / restore / refund | Needs the product in App Store Connect | Section 3 (sandbox). The StoreKit local tests (`PrefTests`) already pass on the iOS 27 simulator. |
-| Multiplayer vs Android, season deal 0 vs Android | Needs two devices | Create a table on one platform, join from the other, both ways; compare the season's first deal with the Android app. |
+| Multiplayer vs Android | Needs two devices | Create a table on one platform, join from the other, both ways (not run yet). |
+| Season deal 0 vs Android | The Android app was not run | Checked without it for the October 2026 seed `e0596c48…be19`: the iOS simulator's first deal matches the independent oracle (`tools/season_oracle.mjs`), the Swift dump equals the oracle for deals 0/1/2/7, and Android's unmodified engine (8ae21e5, JVM, `tools/parity/run_parity.sh`) equals the Swift bots over 3 pools. Repeat each month with the new seed (read it from the app's cached `season.json`; the server's season endpoint needs the API key). |
