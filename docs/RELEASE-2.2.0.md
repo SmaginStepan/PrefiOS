@@ -8,7 +8,7 @@ The real AdMob ids live only in the untracked `Config/Secrets.xcconfig`
 
 ## 0. Upload the build to TestFlight
 
-Done: build **5** of 2.2.0 is uploaded and processed (builds 3 and 4 are older).
+Done: build **6** of 2.2.0 is uploaded (builds 3-5 are older; 6 fixes the multiplayer "replaced" loop).
 How it was uploaded, for the next release: accept any pending Program License
 Agreement first (App Store Connect → Business), then
 `xcodegen generate`, `xcodebuild archive` on the `Pref` scheme (needs the
@@ -19,7 +19,7 @@ untracked `Config/Secrets.xcconfig` for the real AdMob ids) and
 certificate).
 
 A new upload of the same version needs a higher build number (project.yml:
-`CFBundleVersion` and `CURRENT_PROJECT_VERSION`, now 5).
+`CFBundleVersion` and `CURRENT_PROJECT_VERSION`, now 6).
 
 Business setup that had to be finished before the price showed in the app:
 Paid Apps agreement Active, a bank account (processing takes up to 24 h),
@@ -163,5 +163,5 @@ encryption (HTTPS/TLS) → exempt.
 | UMP EEA form | Simulator geography is not EEA, and the form needs a published AdMob message | Run a Debug build from Xcode on the device with scheme environment variables `PREF_UMP_EEA=1` (forces the EEA geography) and `PREF_UMP_RESET=1` (forgets the stored choice). Check: form appears, then the ATT prompt, then "Privacy settings" shows in the menu and reopens the form. |
 | ATT prompt on a real device | Appears on the simulator, but the system may not show it after one answer | Settings → Privacy & Security → Tracking → toggle, or delete the app to see it again. |
 | Real purchase / restore / refund | Needs the product in App Store Connect | Section 3 (sandbox). The StoreKit local tests (`PrefTests`) already pass on the iOS 27 simulator. |
-| Multiplayer vs Android | Needs two devices | Create a table on one platform, join from the other, both ways (not run yet). |
+| Multiplayer vs Android | Needs two devices | Create a table on one platform, join from the other, both ways. Done 2026-10-31 on the production server (iOS simulator vs Android emulator): one full deal each way with identical talon, tricks, counters and score sheets. Found and fixed in build 6: leaving online play with the back arrow left the old socket alive, so re-entering gave a "replaced" alert and a reconnect loop (present since 2.0); also the Auto button overlapping the guest's score sheet. Not run: host leaves, 4-player sit-out table. |
 | Season deal 0 vs Android | The Android app was not run | Checked without it for the October 2026 seed `e0596c48…be19`: the iOS simulator's first deal matches the independent oracle (`tools/season_oracle.mjs`), the Swift dump equals the oracle for deals 0/1/2/7, and Android's unmodified engine (8ae21e5, JVM, `tools/parity/run_parity.sh`) equals the Swift bots over 3 pools. Repeat each month with the new seed (read it from the app's cached `season.json`; the server's season endpoint needs the API key). |

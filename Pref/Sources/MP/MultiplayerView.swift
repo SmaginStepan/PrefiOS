@@ -83,6 +83,7 @@ struct MultiplayerView: View {
         }
         .background(Theme.background)
         .onAppear { vm.start() }
+        .onDisappear { vm.shutdown() }
         .alert(
             vm.notice.map { noticeText($0) } ?? "",
             isPresented: Binding(get: { vm.notice != nil }, set: { if !$0 { vm.notice = nil } })

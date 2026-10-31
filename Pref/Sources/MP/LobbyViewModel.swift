@@ -58,19 +58,43 @@ final class LobbyViewModel: ObservableObject {
         client.onMessage = { [weak self] msg in
             self?.onMessage(msg)
         }
-        // connection keeper + lobby polling
+        // connection keeper + lobby polling; `self` is only touched inside
+        // keeperTick(), never held across the sleep, so this loop cannot keep
+        // an abandoned view model (and its socket) alive
         keeperTask = Task { [weak self] in
             while !Task.isCancelled {
-                guard let self = self else { return }
-                if self.conn == .disconnected {
-                    let s = AppSettings()
-                    self.client.connect(playerId: s.playerId, name: s.playerName)
-                } else if self.conn == .connected && self.currentRoom == nil {
-                    self.client.send(.listRooms)
-                }
+                guard self?.keeperTick() != nil else { return }
                 try? await Task.sleep(nanoseconds: 4_000_000_000)
             }
         }
+    }
+
+    private func keeperTick() {
+        if conn == .disconnected {
+            let s = AppSettings()
+            client.connect(playerId: s.playerId, name: s.playerName)
+        } else if conn == .connected && currentRoom == nil {
+            client.send(.listRooms)
+        }
+    }
+
+    /// Leaving the multiplayer section on purpose: give up the seat, stop the
+    /// keeper and close the socket right away. Without this the old client kept
+    /// reconnecting with the same player id, and the next visit's new client
+    /// and the old one replaced each other ("replaced" alert, endless loop).
+    /// start() works again afterwards.
+    func shutdown() {
+        keeperTask?.cancel()
+        keeperTask = nil
+        let c = client
+        if inRoomForDeinit {
+            c.send(.leave)
+            // let the leave frame go out before the socket is closed
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { c.disconnect() }
+        } else {
+            c.disconnect()
+        }
+        startedOnce = false
     }
 
     private func onMessage(_ msg: ServerMsg) {

@@ -536,17 +536,22 @@ struct MpGuestView: View {
                             }
                             .buttonStyle(.bordered)
                         }
-                        Button {
-                            vm.autoConfirmDeal.toggle()
-                            act(GameMsg.Act(autoMode: vm.autoConfirmDeal))
-                        } label: {
-                            Text(L("game_btn_auto"))
-                                .font(.system(size: 12))
-                                .lineSpacing(-2)
-                                .multilineTextAlignment(.center)
-                                .foregroundColor(vm.autoConfirmDeal ? Theme.accentYellow : .white)
+                        // hidden while a score sheet covers the table: it sat on
+                        // top of the sheet's own Continue button, and the sheet
+                        // always waits for a real tap anyway
+                        if st.scores == nil && !vm.scorePeek {
+                            Button {
+                                vm.autoConfirmDeal.toggle()
+                                act(GameMsg.Act(autoMode: vm.autoConfirmDeal))
+                            } label: {
+                                Text(L("game_btn_auto"))
+                                    .font(.system(size: 12))
+                                    .lineSpacing(-2)
+                                    .multilineTextAlignment(.center)
+                                    .foregroundColor(vm.autoConfirmDeal ? Theme.accentYellow : .white)
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
                         Spacer()
                     }
                 }
