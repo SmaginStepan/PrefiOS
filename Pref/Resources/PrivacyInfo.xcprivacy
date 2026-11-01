@@ -93,8 +93,6 @@
 		</dict>
 	</array>
 	<key>NSPrivacyTracking</key>
-	<true/>
-	<key>NSPrivacyTrackingDomains</key>
-	<array/>
+	<false/>
 </dict>
 </plist>
